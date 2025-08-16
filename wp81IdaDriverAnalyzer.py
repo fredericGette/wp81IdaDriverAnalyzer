@@ -1,4 +1,4 @@
-# A simple "Hello, World" style plugin for IDA Pro
+# A simple plugin for IDA Pro
 # This plugin will display a message box when loaded from the Plugins menu.
 
 # Import the necessary IDA Python modules
@@ -42,8 +42,8 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		"""
 		print("Wp81 Driver Analyzer: Run called.")
 		wdf.add_WDFFUNCTIONS_structure()
-		wdf.add_parameters_structures()
-		wdf.rename_wdf_functions()
+		wdf.create_wdf_structures()
+		wdf.rename_wdf_functions_and_offsets()
 		
 		# Display a simple message box to the user
 		ida_kernwin.info("Analyze finished!")

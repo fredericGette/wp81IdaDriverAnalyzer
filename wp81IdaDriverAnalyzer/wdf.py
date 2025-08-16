@@ -6,9 +6,6 @@ import ida_struct
 import idautils
 import ida_funcs
 import ida_hexrays
-import ida_frame
-import ida_typeinf
-import ida_ua
 import ida_entry
 
 """
@@ -19,16 +16,18 @@ Originally by Nicolas Guigo
 Modified by Braden Hollembaek, Adam Pond and Paolo Stagno
 """
 
-MAJOR_VERSION_OFFSET = 0x0
-MINOR_VERSION_OFFSET = 0x4
-
-WDF_FUNCTIONS_OFFSET = 0x10
 
 WDFFUNCTIONS_STRUCT_NAME = "WDFFUNCTIONS"
 WDF_DRIVER_CONFIG_STRUCT_NAME = "_WDF_DRIVER_CONFIG"
+UNICODE_STRING_STRUCT_NAME = "_UNICODE_STRING"
+DRIVER_OBJECT_STRUCT_NAME = "_DRIVER_OBJECT"
+WDFDRIVER_STRUCT_NAME = "WDFDRIVER__"
+WDFDEVICE_INIT_STRUCT_NAME = "WDFDEVICE_INIT"
+WDF_OBJECT_ATTRIBUTES_STRUCT_NAME = "_WDF_OBJECT_ATTRIBUTES"
+WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME = "_WDF_OBJECT_CONTEXT_TYPE_INFO"
 
-PTR_SIZE = 4
 
+# We only accept KMDF 1.11 (no need currently to have another version)
 kmdf1_11 = [
 	"WdfChildListCreate",
 	"WdfChildListGetDevice",
@@ -469,12 +468,14 @@ kmdf1_11 = [
 	"WdfFdoInitQueryPropertyEx",
 	"WdfFdoInitAllocAndQueryPropertyEx" # here ends version 1.11
 	]
+
+# Address of the array containing the WDF functions
 WdfFunctions_address = 0
 
 def add_WDFFUNCTIONS_structure():
 	global WdfFunctions_address
-	# Search the KmdfLibrary
 	
+	# Search the KmdfLibrary
 	# Encode the string to UTF-16LE
 	search_string_bytes = "KmdfLibrary".encode('utf-16le')
 	
@@ -482,12 +483,12 @@ def add_WDFFUNCTIONS_structure():
 	hex_pattern = "".join(f'{b:02X} ' for b in search_string_bytes)
 	
 	# Start searching from the beginning of the IDB.
-	address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), hex_pattern, 16, ida_search.SEARCH_DOWN)
-	if address == idaapi.BADADDR:
+	aKmdflibrary_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), hex_pattern, 16, ida_search.SEARCH_DOWN)
+	if aKmdflibrary_address == idaapi.BADADDR:
 		print(f"KmdfLibrary not found !")
 		return
 		
-	ref_to_address = idc.get_first_dref_to(address)
+	ref_to_aKmdflibrary_address = idc.get_first_dref_to(aKmdflibrary_address)
 	
 	# The name of the library is referenced in this structure:
 	#WdfBindInfo	DCD 0x20				; Size
@@ -499,16 +500,15 @@ def add_WDFFUNCTIONS_structure():
 	#				DCD WdfFunctions		; FuncTable
 	#				DCD 0					; Module
 	
-	major = idc.get_wide_dword(ref_to_address + PTR_SIZE + MAJOR_VERSION_OFFSET)
-	minor = idc.get_wide_dword(ref_to_address + PTR_SIZE + MINOR_VERSION_OFFSET)
+	major = idc.get_wide_dword(ref_to_aKmdflibrary_address + 4)
+	minor = idc.get_wide_dword(ref_to_aKmdflibrary_address + 8)
 	print(f"Found KmdfLibrary version {major}.{minor}")
 	if (major!=1 or minor !=11):
 		print(f"Only version 1.11 is supported by this plugin !")
 		return
 	
-	idc.set_name(ref_to_address-4, 'WdfBindInfo')
+	idc.set_name(ref_to_aKmdflibrary_address-4, 'WdfBindInfo')
 	
-	structure_id = -1
 	# check if the structure already exists
 	structure_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
 	if structure_id != -1:
@@ -517,14 +517,12 @@ def add_WDFFUNCTIONS_structure():
 	idc.add_struc(-1, WDFFUNCTIONS_STRUCT_NAME, 0)
 	structure_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
 	for func_name in kmdf1_11:
-		idc.add_struc_member(structure_id, func_name, idc.BADADDR, idc.FF_DATA | ida_bytes.FF_DWORD, -1, PTR_SIZE)
-	WdfFunctions_address = idaapi.get_32bit(ref_to_address + PTR_SIZE + WDF_FUNCTIONS_OFFSET)
-	size = idc.get_struc_size(structure_id)
-	# Set a name to the memory address
-	idc.set_name(WdfFunctions_address, 'WdfFunctions')
-	# Apply the structure to the memory address
-	ida_bytes.create_struct(WdfFunctions_address, size, structure_id, True)
-	print(f"Applyed structure {WDFFUNCTIONS_STRUCT_NAME} (size={hex(size)}) at {hex(WdfFunctions_address)}")
+		idc.add_struc_member(structure_id, func_name, idc.BADADDR, idc.FF_DATA | ida_bytes.FF_DWORD, -1, 4)
+	
+	# Get the address pointed by 'FuncTable'
+	WdfFunctions_address = ida_bytes.get_32bit(ref_to_aKmdflibrary_address + 20)
+	rename_offset(WdfFunctions_address, 'WdfFunctions')
+	apply_structure_to_offset(WdfFunctions_address, WDFFUNCTIONS_STRUCT_NAME)
 
 def find_wdf_function_address(function_name):
 	"""
@@ -537,25 +535,6 @@ def find_wdf_function_address(function_name):
 	
 	function_offset = idc.get_member_offset(struct_id, function_name)
 	return WdfFunctions_address+function_offset
-
-def find_wdf_functions():
-	address_WdfDriverCreate = find_wdf_function_address('WdfDriverCreate')
-	print(f"Address of WdfDriverCreate: {hex(address_WdfDriverCreate)}")
-	
-	# Use XrefsTo to get all cross-references to the target address
-	xrefs = idautils.XrefsTo(address_WdfDriverCreate)
-	
-	# Check if any references were found
-	if not xrefs:
-		print("No cross-references found.")
-	else:
-		for xref in xrefs:
-			print(f"  - Reference from: {hex(xref.frm)}")
-			# Get the function object containing the target address
-			function = ida_funcs.get_func(xref.frm)
-			function_address = function.start_ea
-			function_name = idc.get_func_name(function_address)
-			print(f"  - Function name: {function_name}")
 
 def find_function_address(size, patterns):
 	for func_ea in idautils.Functions():
@@ -571,97 +550,7 @@ def find_function_address(size, patterns):
 					return func_ea
 	return idc.BADADDR
 
-def create_unicode_string():
-	"""
-	Creates the _UNICODE_STRING structure in the current IDB.
-	"""
-	struct_name = "_UNICODE_STRING"
-	
-	# Check if the structure already exists
-	struct_id = idc.get_struc_id(struct_name)
-	if struct_id != idc.BADADDR:
-		# delete old structure
-		idc.del_struc(struct_id)
-	
-	# Create a new structure with the specified name.
-	struct_id = idc.add_struc(-1, struct_name, 0)
-	if struct_id == idc.BADADDR:
-		print(f"Failed to create structure '{struct_name}'.")
-		return
-	
-	# Add the 'Length' member (2 bytes, WORD).
-	# idc.add_struc_member(struct_id, member_name, offset, flags, type_id, size)
-	idc.add_struc_member(struct_id, "Length", 0x0, idc.FF_WORD, -1, 2)
-	
-	# Add the 'MaximumLength' member (2 bytes, WORD).
-	idc.add_struc_member(struct_id, "MaximumLength", 0x2, idc.FF_WORD, -1, 2)
-	
-	# Add the 'Buffer' member (4 bytes, DWORD, pointer).
-	# Since it's a pointer, we use FF_DWORD for the 4-byte size.
-	idc.add_struc_member(struct_id, "Buffer", 0x4, idc.FF_DWORD, -1, 4)
-
-def create_driver_object_struct():
-	"""
-	Creates the _DRIVER_OBJECT structure with its members.
-	"""
-	struct_name = "_DRIVER_OBJECT"
-	
-	# Check if the structure already exists
-	struc_id = idc.get_struc_id(struct_name)
-	if struc_id != idc.BADADDR:
-		# delete old structure
-		idc.del_struc(struc_id)
-	
-	# Create the structure
-	struc_id = idc.add_struc(-1, struct_name, 0)
-	if struc_id == idc.BADADDR:
-		print(f"Failed to create structure '{struct_name}'.")
-		return
-	
-	# Add members to the structure
-	idc.add_struc_member(struc_id, "Type", 0x0, idc.FF_WORD, -1, 2)
-	idc.add_struc_member(struc_id, "Size", 0x2, idc.FF_WORD, -1, 2)
-	idc.add_struc_member(struc_id, "DeviceObject", 0x4, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "Flags", 0x8, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverStart", 0xC, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverSize", 0x10, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverSection", 0x14, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverExtension", 0x18, idc.FF_DWORD, -1, 4)
-	
-	# Add the _UNICODE_STRING member
-	unicode_string_id = idc.get_struc_id("_UNICODE_STRING")
-	if unicode_string_id == idc.BADADDR:
-		print("Structure '_UNICODE_STRING' is missing !")
-		return
-		
-	# Add _UNICODE_STRING as a member
-	idc.add_struc_member(struc_id, "DriverName", 0x1C, idc.FF_STRUCT, unicode_string_id, idc.get_struc_size(unicode_string_id))
-	
-	idc.add_struc_member(struc_id, "HardwareDatabase", 0x24, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "FastIoDispatch", 0x28, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverInit", 0x2C, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverStartIo", 0x30, idc.FF_DWORD, -1, 4)
-	idc.add_struc_member(struc_id, "DriverUnload", 0x34, idc.FF_DWORD, -1, 4)
-	
-	# Add the MajorFunction array
-	# The flag FF_DWORD|FF_DATA is used for a DCD type
-	idc.add_struc_member(struc_id, "MajorFunction", 0x38, idc.FF_DWORD | idc.FF_DATA, -1, 28*4)
-
-
-def create_wdf_driver_config_struc():
-	"""
-	Creates the _WDF_DRIVER_CONFIG structure with all its members.
-	"""
-	# Define the structure name and the member information
-	struc_name = WDF_DRIVER_CONFIG_STRUCT_NAME
-	members = [
-		("Size", 0x00, idc.FF_DWORD, 4),
-		("EvtDriverDeviceAdd", 0x04, idc.FF_DWORD, 4),
-		("EvtDriverUnload", 0x08, idc.FF_DWORD, 4),
-		("DriverInitFlags", 0x0C, idc.FF_DWORD, 4),
-		("DriverPoolTag", 0x10, idc.FF_DWORD, 4),
-	]
-	
+def create_wdf_structure(struc_name, members):
 	# Check if the structure already exists
 	struc_id = idc.get_struc_id(struc_name)
 	if struc_id != idc.BADADDR:
@@ -675,7 +564,7 @@ def create_wdf_driver_config_struc():
 		return
 	
 	# Add each member to the new structure
-	for name, offset, flag, size in members:
+	for name, offset, flag, type_id, size in members:
 		# The add_struc_member function requires the structure ID,
 		# member name, offset, flags, and size.
 		result = idc.add_struc_member(
@@ -683,51 +572,86 @@ def create_wdf_driver_config_struc():
 			name,			# Member name
 			offset,			# Member offset
 			flag,			# Flags (e.g., idc.FF_DWORD for a 4-byte DCD)
-			-1,				# Type ID (use -1 for simple types like DWORD)
+			type_id,		# Type ID (use -1 for simple types like DWORD)
 			size			# Size of the member
 		)
+	
+	return struc_id
 
-def create_WDFDRIVER():
-	"""
-	Creates the WDFDRIVER__ structure in the current IDB.
-	"""
-	struct_name = "WDFDRIVER__"
-	
-	# Check if the structure already exists
-	struct_id = idc.get_struc_id(struct_name)
-	if struct_id != idc.BADADDR:
-		# delete old structure
-		idc.del_struc(struct_id)
-	
-	# Create a new structure with the specified name.
-	struct_id = idc.add_struc(-1, struct_name, 0)
-	if struct_id == idc.BADADDR:
-		print(f"Failed to create structure '{struct_name}'.")
-		return
-	
-	# Add the 'unused' member (4 bytes, DWORD).
-	idc.add_struc_member(struct_id, "unused", 0x4, idc.FF_DWORD, -1, 4)
-
-def create_WDFDEVICE_INIT():
-	"""
-	Creates the WDFDEVICE_INIT structure in the current IDB.
-	"""
-	struct_name = "WDFDEVICE_INIT"
-	
-	# Check if the structure already exists
-	struct_id = idc.get_struc_id(struct_name)
-	if struct_id != idc.BADADDR:
-		# delete old structure
-		idc.del_struc(struct_id)
-	
-	# Create a new structure with the specified name.
-	struct_id = idc.add_struc(-1, struct_name, 0)
-	if struct_id == idc.BADADDR:
-		print(f"Failed to create structure '{struct_name}'.")
-		return
-	
-	# Add the 'unused' member (4 bytes, DWORD).
-	idc.add_struc_member(struct_id, "unused", 0x4, idc.FF_DWORD, -1, 4)
+def create_wdf_structures():
+	unicode_string_id = create_wdf_structure(
+		UNICODE_STRING_STRUCT_NAME, 
+		[
+			("Length", 0x00, idc.FF_WORD, -1, 2),
+			("MaximumLength", 0x02, idc.FF_WORD, -1, 2),
+			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_wdf_structure(
+		DRIVER_OBJECT_STRUCT_NAME,
+		[
+			("Type", 0x00, idc.FF_WORD, -1, 2),
+			("Size", 0x02, idc.FF_WORD, -1, 2),
+			("DeviceObject", 0x04, idc.FF_DWORD, -1, 4),
+			("Flags", 0x08, idc.FF_DWORD, -1, 4),
+			("DriverStart", 0x0C, idc.FF_DWORD, -1, 4),
+			("DriverSize", 0x10, idc.FF_DWORD, -1, 4),
+			("DriverSection", 0x14, idc.FF_DWORD, -1, 4),
+			("DriverExtension", 0x18, idc.FF_DWORD, -1, 4),
+			("DriverName", 0x1C, idc.FF_STRUCT, unicode_string_id, idc.get_struc_size(unicode_string_id)),
+			("HardwareDatabase", 0x24, idc.FF_DWORD, -1, 4),
+			("FastIoDispatch", 0x28, idc.FF_DWORD, -1, 4),
+			("DriverInit", 0x2C, idc.FF_DWORD, -1, 4),
+			("DriverStartIo", 0x30, idc.FF_DWORD, -1, 4),
+			("DriverUnload", 0x34, idc.FF_DWORD, -1, 4),
+			("MajorFunction", 0x38, idc.FF_DWORD | idc.FF_DATA, -1, 28*4), # The flag FF_DWORD|FF_DATA is used for a DCD type
+		]
+	)
+	create_wdf_structure(
+		WDF_DRIVER_CONFIG_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("EvtDriverDeviceAdd", 0x04, idc.FF_DWORD, -1, 4),
+			("EvtDriverUnload", 0x08, idc.FF_DWORD, -1, 4),
+			("DriverInitFlags", 0x0C, idc.FF_DWORD, -1, 4),
+			("DriverPoolTag", 0x10, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_wdf_structure(
+		WDFDRIVER_STRUCT_NAME,
+		[
+			("unused", 0x00, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_wdf_structure(
+		WDFDEVICE_INIT_STRUCT_NAME,
+		[
+			("unused", 0x00, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_wdf_structure(
+		WDF_OBJECT_ATTRIBUTES_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("EvtCleanupCallback", 0x04, idc.FF_DWORD, -1, 4),
+			("EvtDestroyCallback", 0x08, idc.FF_DWORD, -1, 4),
+			("ExecutionLevel", 0x0C, idc.FF_DWORD, -1, 4),
+			("SynchronizationScope", 0x10, idc.FF_DWORD, -1, 4),
+			("ParentObject", 0x14, idc.FF_DWORD, -1, 4),
+			("ContextSizeOverride", 0x18, idc.FF_DWORD, -1, 4),
+			("ContextTypeInfo", 0x1C, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_wdf_structure(
+		WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("ContextName", 0x04, idc.FF_DWORD, -1, 4),
+			("ContextSize", 0x08, idc.FF_DWORD, -1, 4),
+			("UniqueType", 0x0C, idc.FF_DWORD, -1, 4),
+			("EvtDriverGetUniqueContextType", 0x10, idc.FF_DWORD, -1, 4),
+		]
+	)
 
 def rename_function(function_address, new_proto):
 	old_name = idc.get_name(function_address)
@@ -742,14 +666,126 @@ def rename_function(function_address, new_proto):
 	idc.SetType(function_address, new_proto)
 	print(f"Renamed '{old_name}' to '{new_proto}'")
 
-def add_parameters_structures():
-	create_unicode_string()
-	create_driver_object_struct()
-	create_wdf_driver_config_struc()
-	create_WDFDRIVER()
-	create_WDFDEVICE_INIT()
 
-def rename_wdf_functions():
+# Iterate through a C-tree to find the call to a WDF function
+# The memory address of the WDF function is casted in order to be called
+# example: ((int (__fastcall *)(int, int, int, int *, _WDF_DRIVER_CONFIG *, _DWORD))WdfFunctions.WdfDriverCreate)(...)
+class find_call_visitor(idaapi.ctree_visitor_t):
+	def __init__(self, search_function_name):
+		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
+		self.found_call = None
+		self.search_function_name = search_function_name
+
+	def visit_expr(self, expr):
+		if expr.op == idaapi.cot_call:
+			if expr.x.op  == idaapi.cot_cast:
+				if expr.x.x.op == idaapi.cot_memref:
+					if expr.x.x.x.op == idaapi.cot_obj:
+						object_name = idc.get_name(expr.x.x.x.obj_ea)
+						member_offset = expr.x.x.m
+						if object_name == 'WdfFunctions':
+							struc_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
+							struc_t = ida_struct.get_struc (struc_id)
+							member_id = ida_struct.get_member_id(struc_t, member_offset)
+							member_name = ida_struct.get_member_name(member_id)
+							if member_name == self.search_function_name:
+								self.found_call = expr
+								return 1  # Stop traversal
+		return 0  # Continue traversal
+
+# Iterate through a C-tree to find the assignment of a variable of a given type
+class find_asg_visitor(idaapi.ctree_visitor_t):
+	def __init__(self, search_var_type, search_var_type_member):
+		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
+		self.found_asg = None
+		self.search_var_type = search_var_type
+		self.search_var_type_member = search_var_type_member
+
+	def visit_expr(self, expr):
+		if expr.op == idaapi.cot_asg:
+			if expr.x.op  == idaapi.cot_memref:
+				if expr.x.x.op == idaapi.cot_var:
+					if str(expr.x.x.v.getv().tif) == self.search_var_type:
+						member_offset = expr.x.m
+						struc_id = ida_struct.get_struc_id(self.search_var_type)
+						struc_t = ida_struct.get_struc (struc_id)
+						member_id = ida_struct.get_member_id(struc_t, member_offset)
+						member_name = ida_struct.get_member_name(member_id)
+						if member_name == self.search_var_type_member:
+							self.found_asg = expr
+							return 1  # Stop traversal
+		return 0  # Continue traversal
+
+def apply_structure_to_stack_parameter(function_address, call_expr, idx_param, struct_name, new_var_name):
+	
+	function_name = idc.get_func_name(function_address)
+	
+	if call_expr.a.size() < idx_param+1: #(+1 because 0-based index
+		print("The function call does not have a {idx_param+1}th parameter.")
+		return
+	param_expr = call_expr.a[idx_param]
+	if not param_expr.v.getv().is_stk_var():
+		print(f"The {idx_param+1}th parameter ({param_expr.v.getv().name}) is not a stack frame variable !")
+		return
+	struc_id = ida_struct.get_struc_id(struct_name)
+	s = ida_struct.get_struc(struc_id)
+	struc_size = ida_struct.get_struc_size(s)
+	frame_id = idc.get_frame_id(function_address)
+	stack_frame_offset = param_expr.v.getv().get_stkoff()
+	#Delete existing members of the stack frame
+	for i in range(struc_size-1):
+		idc.del_struc_member(frame_id, stack_frame_offset + i)
+	result = idc.add_struc_member(frame_id, new_var_name, stack_frame_offset, idc.FF_STRUCT|idc.FF_DATA, struc_id, struc_size)
+	if result != 0:
+		print(f"Failed to apply structure {struct_name} in the stack frame of the function '{function_name}' at the offset {hex(stack_frame_offset)}. Error code : {result}")
+		return
+	print(f"Applyed structure {struct_name} in the stack frame of the function '{function_name}' at the offset {hex(stack_frame_offset)}")
+
+def rename_offset(offset_address, new_name):
+	old_name = idc.get_name(offset_address)
+	idc.set_name(offset_address, new_name)
+	print(f"Renamed '{old_name}' to '{new_name}'")
+
+def apply_structure_to_offset(offset_address, struct_name):
+	struc_id = ida_struct.get_struc_id(struct_name)
+	s = ida_struct.get_struc(struc_id)
+	struc_size = ida_struct.get_struc_size(s)
+	#Delete existing items
+	for i in range(struc_size-1):
+		ida_bytes.del_items(offset_address + i, ida_bytes.get_item_size(offset_address + i))
+	# Apply the structure to the memory address
+	result = ida_bytes.create_struct(offset_address, struc_size, struc_id, True) #Force=True
+	if result != True:
+		print(f"Failed to apply structure {struct_name} at the offset {hex(offset_address)}.")
+		return
+	print(f"Applyed structure {struct_name} at the offset {hex(offset_address)}")
+
+def rename_wdf_context_type_info(ContextTypeInfo_address):
+	ContextTypeInfo_structure_address = ida_bytes.get_32bit(ContextTypeInfo_address)
+	apply_structure_to_offset(ContextTypeInfo_structure_address, WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME)
+	context_name_address = ida_bytes.get_32bit(ContextTypeInfo_structure_address+4) #Read the value of the pointer to the name of the context
+	context_size = ida_bytes.get_32bit(ContextTypeInfo_structure_address+8)
+	context_name = idc.get_strlit_contents(context_name_address).decode('utf-8')
+	ContextTypeInfo_structure_name = "WDF_"+context_name+"_TYPE_INFO"
+	print(f"ContextTypeInfo_structure_address:{hex(ContextTypeInfo_structure_address)}, context_size:{context_size}, context_name:{context_name}")
+	rename_offset(ContextTypeInfo_structure_address, ContextTypeInfo_structure_name)
+	
+	# Create the structure of the context
+	# Check if the structure already exists
+	struc_id = idc.get_struc_id(context_name)
+	if struc_id != idc.BADADDR:
+		# delete old structure
+		idc.del_struc(struc_id)
+	# Create a new structure
+	struc_id = idc.add_struc(-1, context_name, 0) # -1 adds it at the end, 0 means not a union
+	if struc_id == idc.BADADDR:
+		print(f"Failed to create structure '{context_name}'")
+		return
+	for idx in range(context_size):
+		idc.add_struc_member(struc_id, f"field_{idx:x}", idx, idc.FF_BYTE | idc.FF_DATA, -1,1)
+
+
+def rename_wdf_functions_and_offsets():
 	
 	# Get the address of the main entry point
 	entry_point_address = ida_entry.get_entry(ida_entry.get_entry_ordinal(0))
@@ -788,137 +824,71 @@ def rename_wdf_functions():
 	destination_address = idc.get_operand_value(function_address+16, 0)
 	rename_function(destination_address, 'int __fastcall DriverEntry(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
 	
+	# Find the function calling 'WdfDriverCreate'
+	# Usually, this is the 'DriverEntry' function
 	address_WdfDriverCreate = find_wdf_function_address('WdfDriverCreate')
-	
 	# Use XrefsTo to get all cross-references to the target address
 	xrefs = idautils.XrefsTo(address_WdfDriverCreate)
-	
+	xrefs_list = list(xrefs)  # Convert the generator to a list
 	# Check if any references were found
-	if not xrefs:
+	if len(xrefs_list) < 1:
 		print("WdfDriverCreate is never called !")
 		return
+	if len(xrefs_list) > 1:
+		print("WdfDriverCreate is called more than once !")
+		return
+	xref = xrefs_list[0]
+	# Get the function object containing the target address
+	function = ida_funcs.get_func(xref.frm)
+	function_address = function.start_ea
+	function_name = idc.get_func_name(function_address)
 	
-	# Iterate through the references and print the source address
-	xrefs_list = list(xrefs)  # Convert the generator to a list
-	xrefs_list_size = len(xrefs_list)
-	for xref in xrefs_list:
-		# Get the function object containing the target address
-		function = ida_funcs.get_func(xref.frm)
-		function_address = function.start_ea
-		function_name = idc.get_func_name(function_address)
-		
-		# Decompile the function to find the call to WdfDriverCreate
-		cfunc = ida_hexrays.decompile(function)
-		# Iterate through the C-tree to find the call to WdfDriverCreate
-		class find_call_visitor(idaapi.ctree_visitor_t):
-			def __init__(self, search_function_name):
-				idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
-				self.found_call = None
-				self.search_function_name = search_function_name
-
-			def visit_expr(self, expr):
-				if expr.op == idaapi.cot_call:
-					if expr.x.op  == idaapi.cot_cast:
-						if expr.x.x.op == idaapi.cot_memref:
-							if expr.x.x.x.op == idaapi.cot_obj:
-								object_name = idc.get_name(expr.x.x.x.obj_ea)
-								member_offset = expr.x.x.m
-								if object_name == 'WdfFunctions':
-									struc_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
-									struc_t = ida_struct.get_struc (struc_id)
-									member_id = ida_struct.get_member_id(struc_t, member_offset)
-									member_name = ida_struct.get_member_name(member_id)
-									if member_name == self.search_function_name:
-										self.found_call = expr
-										return 1  # Stop traversal
-				return 0  # Continue traversal
-		
-		visitor = find_call_visitor('WdfDriverCreate')
-		visitor.apply_to(cfunc.body, None)
-		
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'WdfFunctions.WdfDriverCreate' in the function {function_name}.")
-			return
-		
-		# Access the 5th parameter (DriverConfig) and change its type
-		# Parameters are stored in the `a` field (array of expressions)
-		if call_expr.a.size() < 5:
-			print("The function call does not have a 5th parameter.")
-			return
-		
-		# The 5th parameter is at index 4 (0-based index)
-		param5_expr = call_expr.a[4]
-		
-		if not param5_expr.v.getv().is_stk_var():
-			print("The 5th parameter of WdfDriverCreate ({param4_expr.v.getv().name}) is not a stack frame variable !")
-			return
-		
-		struc_id = ida_struct.get_struc_id(WDF_DRIVER_CONFIG_STRUCT_NAME)
-		s = ida_struct.get_struc(struc_id)
-		struc_size = ida_struct.get_struc_size(s)
-		
-		frame_id = idc.get_frame_id(function.start_ea)
-		stack_frame_offset = param5_expr.v.getv().get_stkoff()
-		
-		#Delete existing member of the stack frame
-		for i in range(struc_size-1):
-			idc.del_struc_member(frame_id, stack_frame_offset + i)
-		
-		result = idc.add_struc_member(frame_id, "DriverConfig",stack_frame_offset, idc.FF_STRUCT|idc.FF_DATA, struc_id, struc_size)
-		if result != 0:
-			print(f"Failed to apply structure {WDF_DRIVER_CONFIG_STRUCT_NAME} in the stack frame of the function '{function_name}' at the offset {hex(stack_frame_offset)}. Error code : {result}")
-			return
-		print(f"Applyed structure {WDF_DRIVER_CONFIG_STRUCT_NAME} in the stack frame of the function '{function_name}' at the offset {hex(stack_frame_offset)}")
-		
-		# Invalidate the decompilation cache and close all related pseudocode windows.
-		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
-		
-		# Decompile again the function to find the assignment of DriverConfig
-		cfunc = ida_hexrays.decompile(function)
-		# Iterate through the C-tree to find the assignment of DriverConfig
-		class find_asg_visitor(idaapi.ctree_visitor_t):
-			def __init__(self, search_var_type, search_var_type_member):
-				idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
-				self.found_asg = None
-				self.search_var_type = search_var_type
-				self.search_var_type_member = search_var_type_member
-
-			def visit_expr(self, expr):
-				if expr.op == idaapi.cot_asg:
-					if expr.x.op  == idaapi.cot_memref:
-						if expr.x.x.op == idaapi.cot_var:
-							if str(expr.x.x.v.getv().tif) == self.search_var_type:
-								member_offset = expr.x.m
-								struc_id = ida_struct.get_struc_id(self.search_var_type)
-								struc_t = ida_struct.get_struc (struc_id)
-								member_id = ida_struct.get_member_id(struc_t, member_offset)
-								member_name = ida_struct.get_member_name(member_id)
-								if member_name == self.search_var_type_member:
-									self.found_asg = expr
-									return 1  # Stop traversal
-				return 0  # Continue traversal
-		
-		visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverDeviceAdd')
-		visitor.apply_to(cfunc.body, None)
-		
-		asg_expr = visitor.found_asg
-		if not asg_expr:
-			print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverDeviceAdd' in the function {function_name}.")
-			return
-		
-		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
-			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverDeviceAdd(WDFDRIVER__ *Driver, WDFDEVICE_INIT *DeviceInit)')
-		
-		visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
-		visitor.apply_to(cfunc.body, None)
-		
-		asg_expr = visitor.found_asg
-		if not asg_expr:
-			print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverUnload' in the function {function_name}.")
-			return
-		
-		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
-			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
+	# Decompile the function to find the call to WdfDriverCreate
+	cfunc = ida_hexrays.decompile(function)
+	visitor = find_call_visitor('WdfDriverCreate')
+	visitor.apply_to(cfunc.body, None)
+	call_expr = visitor.found_call
+	if not call_expr:
+		print(f"Could not find a call to 'WdfFunctions.WdfDriverCreate' in the function {function_name}.")
+		return
+	
+	# Access the 3th parameter (DriverAttributes) and change its type.
+	apply_structure_to_stack_parameter(function_address, call_expr, 3, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DriverAttributes")
+	
+	# Access the 4th parameter (DriverConfig) and change its type.
+	apply_structure_to_stack_parameter(function_address, call_expr, 4, WDF_DRIVER_CONFIG_STRUCT_NAME, "DriverConfig")
+	
+	# Invalidate the decompilation cache and close all related pseudocode windows.
+	ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+	
+	# Decompile again the function to find the assignments of DriverAttributes and DriverConfig
+	cfunc = ida_hexrays.decompile(function)
+	
+	visitor = find_asg_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
+	visitor.apply_to(cfunc.body, None)
+	asg_expr = visitor.found_asg
+	if not asg_expr:
+		print(f"Could not find a assignment of '{WDF_OBJECT_ATTRIBUTES_STRUCT_NAME}.ContextTypeInfo' in the function {function_name}.")
+		return
+	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from void* to int
+		if asg_expr.y.x.op == idaapi.cot_obj:
+			rename_wdf_context_type_info(asg_expr.y.x.obj_ea)
+	
+	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverDeviceAdd')
+	visitor.apply_to(cfunc.body, None)
+	asg_expr = visitor.found_asg
+	if not asg_expr:
+		print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverDeviceAdd' in the function {function_name}.")
+		return
+	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
+		if asg_expr.y.x.op == idaapi.cot_obj:
+			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverDeviceAdd(WDFDRIVER__ *Driver, WDFDEVICE_INIT *DeviceInit)')
+	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
+	visitor.apply_to(cfunc.body, None)
+	asg_expr = visitor.found_asg
+	if not asg_expr:
+		print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverUnload' in the function {function_name}.")
+		return
+	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
+		if asg_expr.y.x.op == idaapi.cot_obj:
+			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
