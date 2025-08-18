@@ -7,6 +7,7 @@ import idautils
 import ida_funcs
 import ida_hexrays
 import ida_entry
+import ida_xref
 
 """
 See https://github.com/VoidSec/DriverBuddyReloaded
@@ -25,6 +26,7 @@ WDFDRIVER_STRUCT_NAME = "WDFDRIVER__"
 WDFDEVICE_INIT_STRUCT_NAME = "WDFDEVICE_INIT"
 WDF_OBJECT_ATTRIBUTES_STRUCT_NAME = "_WDF_OBJECT_ATTRIBUTES"
 WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME = "_WDF_OBJECT_CONTEXT_TYPE_INFO"
+EVENT_FILTER_DESCRIPTOR_STRUCT_NAME = "_EVENT_FILTER_DESCRIPTOR"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -550,7 +552,7 @@ def find_function_address(size, patterns):
 					return func_ea
 	return idc.BADADDR
 
-def create_wdf_structure(struc_name, members):
+def create_structure(struc_name, members):
 	# Check if the structure already exists
 	struc_id = idc.get_struc_id(struc_name)
 	if struc_id != idc.BADADDR:
@@ -578,8 +580,8 @@ def create_wdf_structure(struc_name, members):
 	
 	return struc_id
 
-def create_wdf_structures():
-	unicode_string_id = create_wdf_structure(
+def add_others_structures():
+	unicode_string_id = create_structure(
 		UNICODE_STRING_STRUCT_NAME, 
 		[
 			("Length", 0x00, idc.FF_WORD, -1, 2),
@@ -587,7 +589,7 @@ def create_wdf_structures():
 			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		DRIVER_OBJECT_STRUCT_NAME,
 		[
 			("Type", 0x00, idc.FF_WORD, -1, 2),
@@ -607,7 +609,7 @@ def create_wdf_structures():
 			("MajorFunction", 0x38, idc.FF_DWORD | idc.FF_DATA, -1, 28*4), # The flag FF_DWORD|FF_DATA is used for a DCD type
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		WDF_DRIVER_CONFIG_STRUCT_NAME,
 		[
 			("Size", 0x00, idc.FF_DWORD, -1, 4),
@@ -617,19 +619,19 @@ def create_wdf_structures():
 			("DriverPoolTag", 0x10, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		WDFDRIVER_STRUCT_NAME,
 		[
 			("unused", 0x00, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		WDFDEVICE_INIT_STRUCT_NAME,
 		[
 			("unused", 0x00, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		WDF_OBJECT_ATTRIBUTES_STRUCT_NAME,
 		[
 			("Size", 0x00, idc.FF_DWORD, -1, 4),
@@ -642,7 +644,7 @@ def create_wdf_structures():
 			("ContextTypeInfo", 0x1C, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_wdf_structure(
+	create_structure(
 		WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME,
 		[
 			("Size", 0x00, idc.FF_DWORD, -1, 4),
@@ -650,6 +652,14 @@ def create_wdf_structures():
 			("ContextSize", 0x08, idc.FF_DWORD, -1, 4),
 			("UniqueType", 0x0C, idc.FF_DWORD, -1, 4),
 			("EvtDriverGetUniqueContextType", 0x10, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
+		EVENT_FILTER_DESCRIPTOR_STRUCT_NAME,
+		[
+			("Ptr", 0x00, idc.FF_QWORD, -1, 8),
+			("Size", 0x08, idc.FF_DWORD, -1, 4),
+			("Type", 0x0C, idc.FF_DWORD, -1, 4),
 		]
 	)
 
@@ -678,7 +688,7 @@ class find_call_visitor(idaapi.ctree_visitor_t):
 
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_call:
-			if expr.x.op  == idaapi.cot_cast:
+			if expr.x.op  == idaapi.cot_cast: # Case of a call to a WDF function
 				if expr.x.x.op == idaapi.cot_memref:
 					if expr.x.x.x.op == idaapi.cot_obj:
 						object_name = idc.get_name(expr.x.x.x.obj_ea)
@@ -691,6 +701,11 @@ class find_call_visitor(idaapi.ctree_visitor_t):
 							if member_name == self.search_function_name:
 								self.found_call = expr
 								return 1  # Stop traversal
+			elif expr.x.op  == idaapi.cot_obj: # Case of a call to an imported function or to another function of the driver
+				object_name = idc.get_name(expr.x.obj_ea)
+				if object_name == self.search_function_name:
+					self.found_call = expr
+					return 1  # Stop traversal
 		return 0  # Continue traversal
 
 # Iterate through a C-tree to find the assignment of a variable of a given type
@@ -784,8 +799,81 @@ def rename_wdf_context_type_info(ContextTypeInfo_address):
 	for idx in range(context_size):
 		idc.add_struc_member(struc_id, f"field_{idx:x}", idx, idc.FF_BYTE | idc.FF_DATA, -1,1)
 
+def get_imported_function_address(func_name):
+	for name_ea, name in idautils.Names():
+		if name == func_name:
+			return name_ea
 
-def rename_wdf_functions_and_offsets():
+def rename_function_McGenEventRegister():
+	EtwRegister_address = get_imported_function_address('EtwRegister')
+	if EtwRegister_address == idc.BADADDR:
+		print("EtwRegister is not imported !")
+		return
+	rename_function(EtwRegister_address, 'int __fastcall EtwRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *CallbackContext), void *CallbackContext, unsigned __int64 *RegHandle)')
+	xrefs = idautils.XrefsTo(EtwRegister_address)
+	# List comprehension to collect only code xrefs (because we can have multiple Xrefs for the same call)
+	code_xrefs = [
+		xref for xref in idautils.XrefsTo(EtwRegister_address)
+		if xref.type in [
+			ida_xref.dr_R # keeps only Xrefs with type 'dr_R' (removes Xrefs with type 'dr_O' for example)
+		]
+	]
+	if len(code_xrefs) < 1:
+		print("EtwRegister is never called !")
+		return
+	if len(code_xrefs) > 1:
+		print("EtwRegister is called more than once !")
+		return
+	xref = code_xrefs[0]
+	# Get the function object containing the target address
+	McGenEventRegister_function = ida_funcs.get_func(xref.frm)
+	rename_function(McGenEventRegister_function.start_ea, 'int __fastcall McGenEventRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *), void *CallbackContext, unsigned __int64 *RegHandle)')
+	# Decompile the function McGenEventRegister to find the call to EtwRegister
+	cfunc = ida_hexrays.decompile(McGenEventRegister_function)
+	visitor = find_call_visitor('EtwRegister')
+	visitor.apply_to(cfunc.body, None)
+	call_expr = visitor.found_call
+	if not call_expr:
+		print(f"Could not find a call to 'EtwRegister' in the function McGenEventRegister.")
+		return
+	if call_expr.a.size() < 2: 
+		print("The function call does not have a 2nd parameter.")
+		return
+	param_expr = call_expr.a[1] # Because 0-based index
+	if param_expr.op == idaapi.cot_cast and param_expr.x.op == idaapi.cot_obj:
+		rename_function(param_expr.x.obj_ea, 'void __fastcall ETW_EnableCallback(const _GUID *SourceId, unsigned int ControlCode, unsigned __int8 Level, unsigned __int64 MatchAnyKeyword, unsigned __int64 MatchAllKeyword, _EVENT_FILTER_DESCRIPTOR *FilterData, void *CallbackContext)')
+		# Invalidate the decompilation cache and close all related pseudocode windows.
+		ida_hexrays.mark_cfunc_dirty(McGenEventRegister_function.start_ea, True)
+	
+	xrefs = idautils.XrefsTo(McGenEventRegister_function.start_ea)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	count = 0
+	for xref in xrefs_list:
+		count += 1
+		# Get the function object containing the target address
+		calling_function = ida_funcs.get_func(xref.frm)
+		# Decompile the calling function to find the call to McGenEventRegister
+		cfunc = ida_hexrays.decompile(calling_function)
+		visitor = find_call_visitor('McGenEventRegister')
+		visitor.apply_to(cfunc.body, None)
+		call_expr = visitor.found_call
+		if not call_expr:
+			print(f"Could not find a call to 'McGenEventRegister' in the function {idc.get_name(calling_function.start_ea)}.")
+			continue
+		if call_expr.a.size() < 4: 
+			print("The function call does not have 4 parameters.")
+			continue
+		ProviderId_param_expr = call_expr.a[0]
+		if ProviderId_param_expr.op == idaapi.cot_ref and ProviderId_param_expr.x.op == idaapi.cot_obj:
+			rename_offset(ProviderId_param_expr.x.obj_ea, f'ETW_Provider_GUID_{count}')
+		CallbackContext_param_expr = call_expr.a[2]
+		if CallbackContext_param_expr.op == idaapi.cot_ref and CallbackContext_param_expr.x.op == idaapi.cot_obj:
+			rename_offset(CallbackContext_param_expr.x.obj_ea, f'ETW_CallbackContext_{count}')
+		RegHandle_param_expr = call_expr.a[3]
+		if RegHandle_param_expr.op == idaapi.cot_cast and RegHandle_param_expr.x.op == idaapi.cot_ref and RegHandle_param_expr.x.x.op == idaapi.cot_obj:
+			rename_offset(RegHandle_param_expr.x.x.obj_ea, f'ETW_RegistrationHandle_{count}')
+
+def rename_functions_and_offsets():
 	
 	# Get the address of the main entry point
 	entry_point_address = ida_entry.get_entry(ida_entry.get_entry_ordinal(0))
@@ -826,9 +914,9 @@ def rename_wdf_functions_and_offsets():
 	
 	# Find the function calling 'WdfDriverCreate'
 	# Usually, this is the 'DriverEntry' function
-	address_WdfDriverCreate = find_wdf_function_address('WdfDriverCreate')
+	WdfDriverCreate_address = find_wdf_function_address('WdfDriverCreate')
 	# Use XrefsTo to get all cross-references to the target address
-	xrefs = idautils.XrefsTo(address_WdfDriverCreate)
+	xrefs = idautils.XrefsTo(WdfDriverCreate_address)
 	xrefs_list = list(xrefs)  # Convert the generator to a list
 	# Check if any references were found
 	if len(xrefs_list) < 1:
@@ -892,3 +980,5 @@ def rename_wdf_functions_and_offsets():
 	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
 		if asg_expr.y.x.op == idaapi.cot_obj:
 			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
+	
+	rename_function_McGenEventRegister()
