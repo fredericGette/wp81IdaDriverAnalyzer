@@ -8,6 +8,8 @@ import ida_funcs
 import ida_hexrays
 import ida_entry
 import ida_xref
+import ida_typeinf
+import re
 
 """
 See https://github.com/VoidSec/DriverBuddyReloaded
@@ -27,6 +29,9 @@ WDFDEVICE_INIT_STRUCT_NAME = "WDFDEVICE_INIT"
 WDF_OBJECT_ATTRIBUTES_STRUCT_NAME = "_WDF_OBJECT_ATTRIBUTES"
 WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME = "_WDF_OBJECT_CONTEXT_TYPE_INFO"
 EVENT_FILTER_DESCRIPTOR_STRUCT_NAME = "_EVENT_FILTER_DESCRIPTOR"
+WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME = "_WPP_TRACE_CONTROL_BLOCK"
+DEVICE_OBJECT_STRUCT_NAME = "_DEVICE_OBJECT"
+WDF_BIND_INFO_STRUCT_NAME = "_WDF_BIND_INFO"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -509,7 +514,7 @@ def add_WDFFUNCTIONS_structure():
 		print(f"Only version 1.11 is supported by this plugin !")
 		return
 	
-	idc.set_name(ref_to_aKmdflibrary_address-4, 'WdfBindInfo')
+	rename_offset(ref_to_aKmdflibrary_address-4, '_WDF_BIND_INFO WdfBindInfo') # TODO define structure _WDF_BIND_INFO
 	
 	# check if the structure already exists
 	structure_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
@@ -581,6 +586,7 @@ def create_structure(struc_name, members):
 	return struc_id
 
 def add_others_structures():
+	ida_typeinf.set_compiler_id(ida_typeinf.COMP_MS) # Visual C++
 	unicode_string_id = create_structure(
 		UNICODE_STRING_STRUCT_NAME, 
 		[
@@ -662,6 +668,44 @@ def add_others_structures():
 			("Type", 0x0C, idc.FF_DWORD, -1, 4),
 		]
 	)
+	create_structure(
+		WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME,
+		[
+			("Callback", 0x00, idc.FF_DWORD, -1, 4),
+			("ControlGuid", 0x04, idc.FF_DWORD, -1, 4),
+			("Next", 0x08, idc.FF_DWORD, -1, 4),
+			("field_C", 0x0C, idc.FF_BYTE | idc.FF_DATA, -1, 4), # Adding a placeholder member for the undefined bytes.
+			("Logger", 0x10, idc.FF_QWORD, -1, 8),
+			("RegistryPath", 0x18, idc.FF_DWORD, -1, 4),
+			("FlagsLen", 0x1C, idc.FF_BYTE, -1, 1),
+			("Level", 0x1D, idc.FF_BYTE, -1, 1),
+			("Reserved", 0x1E, idc.FF_WORD, -1, 2),
+			("Flags", 0x20, idc.FF_DWORD, -1, 4),
+			("ReservedFlags", 0x24, idc.FF_DWORD, -1, 4),
+			("RegHandle", 0x28, idc.FF_QWORD, -1, 8),
+		]
+	)
+	create_structure(
+		DEVICE_OBJECT_STRUCT_NAME,
+		[
+			("dummy", 0x00, idc.FF_BYTE | idc.FF_DATA, -1, 0xB8), # Placeholder, no need to have the detail of this structure for the moment.
+		]
+	)
+	create_structure(
+		WDF_BIND_INFO_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("Component", 0x04, idc.FF_DWORD, -1, 4),
+			("Version.Major", 0x08, idc.FF_DWORD, -1, 4),
+			("Version.Minor", 0x0C, idc.FF_DWORD, -1, 4),
+			("Version.Build", 0x10, idc.FF_DWORD, -1, 4),
+			("FuncCount", 0x14, idc.FF_DWORD, -1, 4),
+			("FuncTable", 0x18, idc.FF_DWORD, -1, 4),
+			("Module", 0x1C, idc.FF_DWORD, -1, 4),
+		]
+	)
+	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
+		print("Error when adding local type 'wchar_t'.")
 
 def rename_function(function_address, new_proto):
 	old_name = idc.get_name(function_address)
@@ -756,10 +800,20 @@ def apply_structure_to_stack_parameter(function_address, call_expr, idx_param, s
 		return
 	print(f"Applyed structure {struct_name} in the stack frame of the function '{function_name}' at the offset {hex(stack_frame_offset)}")
 
-def rename_offset(offset_address, new_name):
+def rename_offset(offset_address, new_definition):
 	old_name = idc.get_name(offset_address)
+	
+	matches = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', new_definition)
+	if matches:
+		new_name = matches[-1] # get the last match of the capturing group
+	else:
+		print(f"No match found in {new_definition} for offset {hex(offset_address)}")
+		return
+	
 	idc.set_name(offset_address, new_name)
-	print(f"Renamed '{old_name}' to '{new_name}'")
+	if new_name != new_definition: # there's some type definition in addition to the name.
+		idc.SetType(offset_address, new_definition)
+	print(f"Renamed '{old_name}' to '{new_definition}'")
 
 def apply_structure_to_offset(offset_address, struct_name):
 	struc_id = ida_struct.get_struc_id(struct_name)
@@ -782,8 +836,7 @@ def rename_wdf_context_type_info(ContextTypeInfo_address):
 	context_size = ida_bytes.get_32bit(ContextTypeInfo_structure_address+8)
 	context_name = idc.get_strlit_contents(context_name_address).decode('utf-8')
 	ContextTypeInfo_structure_name = "WDF_"+context_name+"_TYPE_INFO"
-	print(f"ContextTypeInfo_structure_address:{hex(ContextTypeInfo_structure_address)}, context_size:{context_size}, context_name:{context_name}")
-	rename_offset(ContextTypeInfo_structure_address, ContextTypeInfo_structure_name)
+	rename_offset(ContextTypeInfo_structure_address, "_WDF_OBJECT_CONTEXT_TYPE_INFO "+ContextTypeInfo_structure_name)
 	
 	# Create the structure of the context
 	# Check if the structure already exists
@@ -829,7 +882,7 @@ def rename_function_McGenEventRegister():
 	McGenEventRegister_function = ida_funcs.get_func(xref.frm)
 	rename_function(McGenEventRegister_function.start_ea, 'int __fastcall McGenEventRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *), void *CallbackContext, unsigned __int64 *RegHandle)')
 	# Decompile the function McGenEventRegister to find the call to EtwRegister
-	cfunc = ida_hexrays.decompile(McGenEventRegister_function)
+	cfunc = ida_hexrays.decompile(McGenEventRegister_function,None,ida_hexrays.DECOMP_NO_WAIT)
 	visitor = find_call_visitor('EtwRegister')
 	visitor.apply_to(cfunc.body, None)
 	call_expr = visitor.found_call
@@ -853,7 +906,7 @@ def rename_function_McGenEventRegister():
 		# Get the function object containing the target address
 		calling_function = ida_funcs.get_func(xref.frm)
 		# Decompile the calling function to find the call to McGenEventRegister
-		cfunc = ida_hexrays.decompile(calling_function)
+		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
 		visitor = find_call_visitor('McGenEventRegister')
 		visitor.apply_to(cfunc.body, None)
 		call_expr = visitor.found_call
@@ -865,13 +918,58 @@ def rename_function_McGenEventRegister():
 			continue
 		ProviderId_param_expr = call_expr.a[0]
 		if ProviderId_param_expr.op == idaapi.cot_ref and ProviderId_param_expr.x.op == idaapi.cot_obj:
-			rename_offset(ProviderId_param_expr.x.obj_ea, f'ETW_Provider_GUID_{count}')
+			rename_offset(ProviderId_param_expr.x.obj_ea, f'_GUID ETW_Provider_GUID_{count}')
 		CallbackContext_param_expr = call_expr.a[2]
 		if CallbackContext_param_expr.op == idaapi.cot_ref and CallbackContext_param_expr.x.op == idaapi.cot_obj:
-			rename_offset(CallbackContext_param_expr.x.obj_ea, f'ETW_CallbackContext_{count}')
+			rename_offset(CallbackContext_param_expr.x.obj_ea, f'void *ETW_CallbackContext_{count}')
 		RegHandle_param_expr = call_expr.a[3]
 		if RegHandle_param_expr.op == idaapi.cot_cast and RegHandle_param_expr.x.op == idaapi.cot_ref and RegHandle_param_expr.x.x.op == idaapi.cot_obj:
-			rename_offset(RegHandle_param_expr.x.x.obj_ea, f'ETW_RegistrationHandle_{count}')
+			rename_offset(RegHandle_param_expr.x.x.obj_ea, f'unsigned __int64 ETW_RegistrationHandle_{count}')
+
+def rename_function_WppInitKm():
+	IoWMIRegistrationControl_address = get_imported_function_address('IoWMIRegistrationControl')
+	if IoWMIRegistrationControl_address == idc.BADADDR:
+		print("IoWMIRegistrationControl is not imported !")
+		return
+	xrefs = idautils.XrefsTo(IoWMIRegistrationControl_address)
+	# List comprehension to collect only code xrefs (because we can have multiple Xrefs for the same call)
+	code_xrefs = [
+		xref for xref in idautils.XrefsTo(IoWMIRegistrationControl_address)
+		if xref.type in [
+			ida_xref.dr_R # keeps only Xrefs with type 'dr_R' (removes Xrefs with type 'dr_O' for example)
+		]
+	]
+	if len(code_xrefs) < 1:
+		print("IoWMIRegistrationControl is never called !")
+		return
+	if len(code_xrefs) > 2:
+		print("IoWMIRegistrationControl is called more than twice !")
+		return
+	for xref in code_xrefs:
+		# Get the function object containing the target address
+		calling_function = ida_funcs.get_func(xref.frm)
+		# Decompile the calling function to find the call to IoWMIRegistrationControl
+		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_call_visitor('IoWMIRegistrationControl')
+		visitor.apply_to(cfunc.body, None)
+		call_expr = visitor.found_call
+		if not call_expr:
+			print(f"Could not find a call to 'IoWMIRegistrationControl' in the function {idc.get_name(calling_function.start_ea)}.")
+			continue
+		if call_expr.a.size() < 2: 
+			print("The function call does not have 2 parameters.")
+			continue
+		param1_expr = call_expr.a[0]
+		param2_expr = call_expr.a[1]
+		if param2_expr.op == idaapi.cot_num and param2_expr.numval() & 1 == 1 : # WMIREG_ACTION_REGISTER
+			if param1_expr.op == idaapi.cot_ref and param1_expr.x.op == idaapi.cot_obj:
+				apply_structure_to_offset(param1_expr.x.obj_ea, WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME) # In reality, it's an union named "WPP_PROJECT_CONTROL_BLOCK" witch contains the structure "_WPP_TRACE_CONTROL_BLOCK"
+				rename_offset(param1_expr.x.obj_ea, f'_WPP_TRACE_CONTROL_BLOCK WPP_MAIN_CB')
+				rename_function(calling_function.start_ea, 'void __fastcall WppInitKm(_DEVICE_OBJECT *DevObject, const _UNICODE_STRING *RegPath)')
+				WPP_GLOBAL_Control_address = idc.get_operand_value(calling_function.start_ea+8, 1) # second operand (operand 1)
+				rename_offset(WPP_GLOBAL_Control_address, '_WPP_TRACE_CONTROL_BLOCK *WPP_GLOBAL_Control') # In reality, it's an union named "WPP_PROJECT_CONTROL_BLOCK" witch contains the structure "_WPP_TRACE_CONTROL_BLOCK"
+	# Clear the decompilation caches to force the usage of the type _WPP_TRACE_CONTROL_BLOCK
+	ida_hexrays.clear_cached_cfuncs()
 
 def rename_functions_and_offsets():
 	
@@ -902,15 +1000,20 @@ def rename_functions_and_offsets():
 	
 	# Get the destination address of the first operand (operand 0)
 	# of the instruction at bl_instruction_address.
-	destination_address = idc.get_operand_value(entry_point_address+12, 0)
-	idc.set_name(destination_address, '__security_init_cookie')
-	destination_address = idc.get_operand_value(entry_point_address+20, 0)
-	rename_function(destination_address, 'int __fastcall FxDriverEntryWorker(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
+	security_init_cookie_address = idc.get_operand_value(entry_point_address+12, 0)
+	rename_offset(security_init_cookie_address, 'unsigned int __security_init_cookie')
+	FxDriverEntryWorker_address = idc.get_operand_value(entry_point_address+20, 0)
+	rename_function(FxDriverEntryWorker_address, 'int __fastcall FxDriverEntryWorker(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
 	
 	# Get the address of the function by its name
 	function_address = idc.get_name_ea_simple('FxDriverEntryWorker')
-	destination_address = idc.get_operand_value(function_address+16, 0)
-	rename_function(destination_address, 'int __fastcall DriverEntry(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
+	DriverEntry_address = idc.get_operand_value(function_address+16, 0)
+	rename_function(DriverEntry_address, 'int __fastcall DriverEntry(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
+	print(f"function_address+0x26 = {hex(function_address+0x26)}")
+	WdfDriverStubRegistryPathBuffer_address = ida_bytes.get_32bit(idc.get_operand_value(function_address+0x26, 1))
+	print(f"WdfDriverStubRegistryPathBuffer_address = {hex(WdfDriverStubRegistryPathBuffer_address)}")
+
+	rename_offset(WdfDriverStubRegistryPathBuffer_address, 'wchar_t WdfDriverStubRegistryPathBuffer[260]')
 	
 	# Find the function calling 'WdfDriverCreate'
 	# Usually, this is the 'DriverEntry' function
@@ -932,7 +1035,7 @@ def rename_functions_and_offsets():
 	function_name = idc.get_func_name(function_address)
 	
 	# Decompile the function to find the call to WdfDriverCreate
-	cfunc = ida_hexrays.decompile(function)
+	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 	visitor = find_call_visitor('WdfDriverCreate')
 	visitor.apply_to(cfunc.body, None)
 	call_expr = visitor.found_call
@@ -950,7 +1053,7 @@ def rename_functions_and_offsets():
 	ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 	
 	# Decompile again the function to find the assignments of DriverAttributes and DriverConfig
-	cfunc = ida_hexrays.decompile(function)
+	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 	
 	visitor = find_asg_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
 	visitor.apply_to(cfunc.body, None)
@@ -982,3 +1085,4 @@ def rename_functions_and_offsets():
 			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
 	
 	rename_function_McGenEventRegister()
+	rename_function_WppInitKm()

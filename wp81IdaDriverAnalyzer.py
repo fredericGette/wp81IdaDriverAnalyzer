@@ -41,12 +41,14 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		or with the hotkey. This is where the main functionality lives.
 		"""
 		print("Wp81 Driver Analyzer: Run called.")
-		wdf.add_WDFFUNCTIONS_structure()
+		ida_kernwin.show_wait_box("HIDECANCEL\nAnalyzing")
+		
 		wdf.add_others_structures()
+		wdf.add_WDFFUNCTIONS_structure()
 		wdf.rename_functions_and_offsets()
 		
-		# Display a simple message box to the user
-		ida_kernwin.info("Analyze finished!")
+		print("Wp81 Driver Analyzer: finished.")
+		ida_kernwin.hide_wait_box()
 
 	def term(self):
 		"""
