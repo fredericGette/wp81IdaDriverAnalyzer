@@ -710,16 +710,30 @@ def add_others_structures():
 def rename_function(function_address, new_proto):
 	old_name = idc.get_name(function_address)
 	
-	# Split the string by spaces and get the third element
-	parts = new_proto.split(' ')
-	function_name_with_paren = parts[2]
-	# Remove the opening parenthesis
-	new_function_name = function_name_with_paren.split('(')[0]
+	# Split the string by opening parenthesis
+	parts = new_proto.split('(')
+	function_name_with_spaces = parts[0]
+	# Split the string by space and keep the last element
+	new_function_name = function_name_with_spaces.split(' ')[-1]
 	
-	idc.set_name(function_address, new_function_name)
-	idc.SetType(function_address, new_proto)
-	print(f"Renamed '{old_name}' to '{new_proto}'")
+	retry = 0
+	while old_name!=new_function_name and idc.get_name_ea_simple(new_function_name)!=idc.BADADDR and retry < 5:
+		new_function_name += '_'
+		retry += 1
+	
+	if retry < 5:
+		idc.set_name(function_address, new_function_name)
+		idc.SetType(function_address, new_proto)
+		print(f"Renamed '{old_name}' to '{new_function_name}' with proto '{new_proto}'")
+	else:
+		print(f"Failed to rename '{old_name}' to '{new_function_name}'")
 
+def get_structure_member_name(structure_name, member_offset):
+	struc_id = ida_struct.get_struc_id(structure_name)
+	struc_t = ida_struct.get_struc (struc_id)
+	member_id = ida_struct.get_member_id(struc_t, member_offset)
+	member_name = ida_struct.get_member_name(member_id)
+	return member_name
 
 # Iterate through a C-tree to find the call to a WDF function
 # The memory address of the WDF function is casted in order to be called
@@ -735,13 +749,17 @@ class find_call_visitor(idaapi.ctree_visitor_t):
 			if expr.x.op  == idaapi.cot_cast: # Case of a call to a WDF function
 				if expr.x.x.op == idaapi.cot_memref:
 					if expr.x.x.x.op == idaapi.cot_obj:
-						object_name = idc.get_name(expr.x.x.x.obj_ea)
 						member_offset = expr.x.x.m
-						if object_name == 'WdfFunctions':
-							struc_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
-							struc_t = ida_struct.get_struc (struc_id)
-							member_id = ida_struct.get_member_id(struc_t, member_offset)
-							member_name = ida_struct.get_member_name(member_id)
+						if str(expr.x.x.x.type) == 'WDFFUNCTIONS':
+							member_name = get_structure_member_name(WDFFUNCTIONS_STRUCT_NAME, member_offset)
+							if member_name == self.search_function_name:
+								self.found_call = expr
+								return 1  # Stop traversal
+				elif expr.x.x.op == idaapi.cot_memptr:
+					if expr.x.x.x.op == idaapi.cot_obj:
+						member_offset = expr.x.x.m
+						if str(expr.x.x.x.type) == 'WDFFUNCTIONS *':
+							member_name = get_structure_member_name(WDFFUNCTIONS_STRUCT_NAME, member_offset)
 							if member_name == self.search_function_name:
 								self.found_call = expr
 								return 1  # Stop traversal
@@ -766,25 +784,29 @@ class find_asg_visitor(idaapi.ctree_visitor_t):
 				if expr.x.x.op == idaapi.cot_var:
 					if str(expr.x.x.v.getv().tif) == self.search_var_type:
 						member_offset = expr.x.m
-						struc_id = ida_struct.get_struc_id(self.search_var_type)
-						struc_t = ida_struct.get_struc (struc_id)
-						member_id = ida_struct.get_member_id(struc_t, member_offset)
-						member_name = ida_struct.get_member_name(member_id)
+						member_name = get_structure_member_name(self.search_var_type, member_offset)
+						if member_name == self.search_var_type_member:
+							self.found_asg = expr
+							return 1  # Stop traversal
+				elif expr.x.x.op == idaapi.cot_obj:
+					if str(expr.x.x.type) == self.search_var_type:
+						member_offset = expr.x.m
+						member_name = get_structure_member_name(self.search_var_type, member_offset)
 						if member_name == self.search_var_type_member:
 							self.found_asg = expr
 							return 1  # Stop traversal
 		return 0  # Continue traversal
 
-def apply_structure_to_stack_parameter(function_address, call_expr, idx_param, struct_name, new_var_name):
+def apply_structure_to_stack_parameter(called_name, function_address, call_expr, idx_param, struct_name, new_var_name):
 	
 	function_name = idc.get_func_name(function_address)
 	
 	if call_expr.a.size() < idx_param+1: #(+1 because 0-based index
-		print("The function call does not have a {idx_param+1}th parameter.")
+		print("In {function_name}, the function '{called_name}' does not have a {idx_param+1}th parameter.")
 		return
 	param_expr = call_expr.a[idx_param]
-	if not param_expr.v.getv().is_stk_var():
-		print(f"The {idx_param+1}th parameter ({param_expr.v.getv().name}) is not a stack frame variable !")
+	if (param_expr.op != idaapi.cot_var) or (not param_expr.v.getv().is_stk_var()):
+		print(f"In {function_name}, the {idx_param+1}th parameter of the function '{called_name}' is not a stack frame variable !")
 		return
 	struc_id = ida_struct.get_struc_id(struct_name)
 	s = ida_struct.get_struc(struc_id)
@@ -856,6 +878,7 @@ def get_imported_function_address(func_name):
 	for name_ea, name in idautils.Names():
 		if name == func_name:
 			return name_ea
+	return idc.BADADDR
 
 def rename_function_McGenEventRegister():
 	EtwRegister_address = get_imported_function_address('EtwRegister')
@@ -902,9 +925,10 @@ def rename_function_McGenEventRegister():
 	xrefs_list = list(xrefs)  # Convert the generator to a list
 	count = 0
 	for xref in xrefs_list:
-		count += 1
 		# Get the function object containing the target address
 		calling_function = ida_funcs.get_func(xref.frm)
+		if calling_function == None:
+			continue
 		# Decompile the calling function to find the call to McGenEventRegister
 		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
 		visitor = find_call_visitor('McGenEventRegister')
@@ -914,8 +938,9 @@ def rename_function_McGenEventRegister():
 			print(f"Could not find a call to 'McGenEventRegister' in the function {idc.get_name(calling_function.start_ea)}.")
 			continue
 		if call_expr.a.size() < 4: 
-			print("The function call does not have 4 parameters.")
+			print(f"In {idc.get_name(calling_function.start_ea)}, the call of 'McGenEventRegister' does not have 4 parameters.")
 			continue
+		count += 1
 		ProviderId_param_expr = call_expr.a[0]
 		if ProviderId_param_expr.op == idaapi.cot_ref and ProviderId_param_expr.x.op == idaapi.cot_obj:
 			rename_offset(ProviderId_param_expr.x.obj_ea, f'_GUID ETW_Provider_GUID_{count}')
@@ -971,8 +996,31 @@ def rename_function_WppInitKm():
 	# Clear the decompilation caches to force the usage of the type _WPP_TRACE_CONTROL_BLOCK
 	ida_hexrays.clear_cached_cfuncs()
 
+def find_WPP_CONTROL_GUID():
+	WPP_MAIN_CB_address = idc.get_name_ea_simple('WPP_MAIN_CB')
+	if WPP_MAIN_CB_address != idc.BADADDR:
+		xrefs = idautils.XrefsTo(WPP_MAIN_CB_address+4) #_WPP_TRACE_CONTROL_BLOCK.ControlGuid
+		xrefs_list = list(xrefs)
+		for xref in xrefs_list:
+			# Get the function object containing the target address
+			calling_function = ida_funcs.get_func(xref.frm)
+			if calling_function == None:
+				continue
+			# Decompile the calling function to find an assignment
+			cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
+			visitor = find_asg_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'ControlGuid')
+			visitor.apply_to(cfunc.body, None)
+			asg_expr = visitor.found_asg
+			if asg_expr:
+				if asg_expr.y.op == idaapi.cot_cast: # there is a cast from _UNKNOWN* to int
+					if asg_expr.y.x.op == idaapi.cot_ref and asg_expr.y.x.x.op == idaapi.cot_obj:
+						rename_offset(asg_expr.y.x.x.obj_ea, 'WPP_CONTROL_GUID')
+			else:
+				print(f"Could not find a assignment of '{WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME}.ControlGuid' in the function {idc.get_func_name(calling_function.start_ea)}.")
+	else:
+		print(f"Could not find 'WPP_MAIN_CB'")
+
 def rename_functions_and_offsets():
-	
 	# Get the address of the main entry point
 	entry_point_address = ida_entry.get_entry(ida_entry.get_entry_ordinal(0))
 	
@@ -1000,20 +1048,38 @@ def rename_functions_and_offsets():
 	
 	# Get the destination address of the first operand (operand 0)
 	# of the instruction at bl_instruction_address.
-	security_init_cookie_address = idc.get_operand_value(entry_point_address+12, 0)
+	security_init_cookie_address = idc.get_operand_value(entry_point_address+12, 0) #TODO: find opcode instead of relying on an offset
 	rename_offset(security_init_cookie_address, 'unsigned int __security_init_cookie')
 	FxDriverEntryWorker_address = idc.get_operand_value(entry_point_address+20, 0)
 	rename_function(FxDriverEntryWorker_address, 'int __fastcall FxDriverEntryWorker(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
 	
 	# Get the address of the function by its name
-	function_address = idc.get_name_ea_simple('FxDriverEntryWorker')
-	DriverEntry_address = idc.get_operand_value(function_address+16, 0)
+	FxDriverEntryWorker_address = idc.get_name_ea_simple('FxDriverEntryWorker')
+	DriverEntry_address = idc.get_operand_value(FxDriverEntryWorker_address+16, 0)
 	rename_function(DriverEntry_address, 'int __fastcall DriverEntry(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)')
-	print(f"function_address+0x26 = {hex(function_address+0x26)}")
-	WdfDriverStubRegistryPathBuffer_address = ida_bytes.get_32bit(idc.get_operand_value(function_address+0x26, 1))
-	print(f"WdfDriverStubRegistryPathBuffer_address = {hex(WdfDriverStubRegistryPathBuffer_address)}")
-
+	WdfDriverStubRegistryPathBuffer_address = ida_bytes.get_32bit(idc.get_operand_value(FxDriverEntryWorker_address+0x26, 1))
 	rename_offset(WdfDriverStubRegistryPathBuffer_address, 'wchar_t WdfDriverStubRegistryPathBuffer[260]')
+	WdfVersionBind0_address = idc.get_operand_value(FxDriverEntryWorker_address+0x42, 0)
+	rename_function(WdfVersionBind0_address, 'int WdfVersionBind_0()')
+	FxStubBindClasses_address = idc.get_operand_value(FxDriverEntryWorker_address+0x4e, 0)
+	rename_function(FxStubBindClasses_address, 'int __fastcall FxStubBindClasses(_WDF_BIND_INFO *WdfBindInfo)')
+	FxStubInitTypes_address = idc.get_operand_value(FxDriverEntryWorker_address+0x58, 0)
+	rename_function(FxStubInitTypes_address, 'int __fastcall FxStubInitTypes()')
+	FxStubDriverUnloadCommon_address = idc.get_operand_value(FxDriverEntryWorker_address+0xa2, 0)
+	rename_function(FxStubDriverUnloadCommon_address, 'void __fastcall FxStubDriverUnloadCommon()')
+	FxStubDriverUnload_address = ida_bytes.get_32bit(idc.get_operand_value(FxDriverEntryWorker_address+0x82, 1))-1
+	rename_function(FxStubDriverUnload_address, 'void __fastcall FxStubDriverUnload(_DRIVER_OBJECT *DriverObject)')
+	
+	FxStubUnbindClasses_address = idc.get_operand_value(FxStubDriverUnloadCommon_address+0x08, 0)
+	rename_function(FxStubUnbindClasses_address, 'void __fastcall FxStubUnbindClasses(_WDF_BIND_INFO *WdfBindInfo)')
+	WdfVersionUnbind0_address = idc.get_operand_value(FxStubDriverUnloadCommon_address+0x12, 0)
+	rename_function(WdfVersionUnbind0_address, 'int WdfVersionUnbind_0()')
+	
+	WdfVersionUnbindClass0_address = idc.get_operand_value(FxStubUnbindClasses_address+0x36, 0)
+	rename_function(WdfVersionUnbindClass0_address, 'int WdfVersionUnbindClass_0()')
+	
+	WdfVersionBindClass0_address = idc.get_operand_value(FxStubBindClasses_address+0x4a, 0)
+	rename_function(WdfVersionBindClass0_address, 'int WdfVersionBindClass_0()')
 	
 	# Find the function calling 'WdfDriverCreate'
 	# Usually, this is the 'DriverEntry' function
@@ -1031,8 +1097,7 @@ def rename_functions_and_offsets():
 	xref = xrefs_list[0]
 	# Get the function object containing the target address
 	function = ida_funcs.get_func(xref.frm)
-	function_address = function.start_ea
-	function_name = idc.get_func_name(function_address)
+	function_name = idc.get_func_name(function.start_ea)
 	
 	# Decompile the function to find the call to WdfDriverCreate
 	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
@@ -1044,10 +1109,10 @@ def rename_functions_and_offsets():
 		return
 	
 	# Access the 3th parameter (DriverAttributes) and change its type.
-	apply_structure_to_stack_parameter(function_address, call_expr, 3, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DriverAttributes")
+	apply_structure_to_stack_parameter('WdfDriverCreate', function.start_ea, call_expr, 3, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DriverAttributes")
 	
 	# Access the 4th parameter (DriverConfig) and change its type.
-	apply_structure_to_stack_parameter(function_address, call_expr, 4, WDF_DRIVER_CONFIG_STRUCT_NAME, "DriverConfig")
+	apply_structure_to_stack_parameter('WdfDriverCreate', function.start_ea, call_expr, 4, WDF_DRIVER_CONFIG_STRUCT_NAME, "DriverConfig")
 	
 	# Invalidate the decompilation cache and close all related pseudocode windows.
 	ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
@@ -1058,31 +1123,33 @@ def rename_functions_and_offsets():
 	visitor = find_asg_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
-	if not asg_expr:
+	if asg_expr:
+		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from void* to int
+			if asg_expr.y.x.op == idaapi.cot_obj:
+				rename_wdf_context_type_info(asg_expr.y.x.obj_ea)
+	else:
 		print(f"Could not find a assignment of '{WDF_OBJECT_ATTRIBUTES_STRUCT_NAME}.ContextTypeInfo' in the function {function_name}.")
-		return
-	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from void* to int
-		if asg_expr.y.x.op == idaapi.cot_obj:
-			rename_wdf_context_type_info(asg_expr.y.x.obj_ea)
 	
 	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverDeviceAdd')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
-	if not asg_expr:
+	if asg_expr:
+		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
+			if asg_expr.y.x.op == idaapi.cot_obj:
+				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverDeviceAdd(WDFDRIVER__ *Driver, WDFDEVICE_INIT *DeviceInit)')
+	else:
 		print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverDeviceAdd' in the function {function_name}.")
-		return
-	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
-		if asg_expr.y.x.op == idaapi.cot_obj:
-			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverDeviceAdd(WDFDRIVER__ *Driver, WDFDEVICE_INIT *DeviceInit)')
+	
 	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
-	if not asg_expr:
+	if asg_expr:
+		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
+			if asg_expr.y.x.op == idaapi.cot_obj:
+				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
+	else:
 		print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverUnload' in the function {function_name}.")
-		return
-	if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
-		if asg_expr.y.x.op == idaapi.cot_obj:
-			rename_function(asg_expr.y.x.obj_ea, 'int __fastcall EvtDriverUnload(WDFDRIVER__ *Driver)')
 	
 	rename_function_McGenEventRegister()
 	rename_function_WppInitKm()
+	find_WPP_CONTROL_GUID()

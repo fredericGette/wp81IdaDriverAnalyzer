@@ -4,6 +4,7 @@
 # Import the necessary IDA Python modules
 import ida_idaapi
 import ida_kernwin
+import traceback
 
 from wp81IdaDriverAnalyzer import wdf
 
@@ -41,14 +42,22 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		or with the hotkey. This is where the main functionality lives.
 		"""
 		print("Wp81 Driver Analyzer: Run called.")
-		ida_kernwin.show_wait_box("HIDECANCEL\nAnalyzing")
-		
-		wdf.add_others_structures()
-		wdf.add_WDFFUNCTIONS_structure()
-		wdf.rename_functions_and_offsets()
-		
-		print("Wp81 Driver Analyzer: finished.")
-		ida_kernwin.hide_wait_box()
+		try:
+			ida_kernwin.show_wait_box("HIDECANCEL\nWp81 Driver Analyzer: Analyzing")
+			
+			wdf.add_others_structures()
+			wdf.add_WDFFUNCTIONS_structure()
+			wdf.rename_functions_and_offsets()
+			
+			print("Wp81 Driver Analyzer: finished.")
+		except Exception as e:
+			# Handle the error gracefully
+			print(f"Wp81 Driver Analyzer: An error occurred: {e}")
+			traceback.print_exc()
+		finally:
+			# This code will always execute, whether there was an error or not
+			# Hide the wait box
+			ida_kernwin.hide_wait_box()
 
 	def term(self):
 		"""
