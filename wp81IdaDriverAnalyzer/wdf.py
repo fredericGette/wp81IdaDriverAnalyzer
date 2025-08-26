@@ -9,6 +9,7 @@ import ida_hexrays
 import ida_entry
 import ida_xref
 import ida_typeinf
+import ida_enum
 import re
 
 """
@@ -706,6 +707,21 @@ def add_others_structures():
 	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Error when adding local type 'wchar_t'.")
+	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
+		print("Error when adding local type 'size_t'.")
+
+def add_enums():
+	enum_id = idc.add_enum(-1, '_WPP_TRACE_API_SUITE', 0x00000010)
+	members_to_add = {
+		"WppTraceDisabledSuite": 0,
+		"WppTraceWin2K": 1,
+		"WppTraceWinXP": 2,
+		"WppTraceTraceLH": 3,
+		"WppTraceServer08": 4,
+		"WppTraceMaxSuite": 5
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, ida_enum.DEFMASK)
 
 def rename_function(function_address, new_proto):
 	old_name = idc.get_name(function_address)
@@ -723,10 +739,14 @@ def rename_function(function_address, new_proto):
 	
 	if retry < 5:
 		idc.set_name(function_address, new_function_name)
-		idc.SetType(function_address, new_proto)
-		print(f"Renamed '{old_name}' to '{new_function_name}' with proto '{new_proto}'")
+		result = idc.SetType(function_address, new_proto)
+		print(f"Renamed '{old_name}' to '{new_function_name}'", end='')
+		if result:
+			print(f" with proto '{new_proto}'.")
+		else:
+			print(f" but failed to apply proto '{new_proto}'.")
 	else:
-		print(f"Failed to rename '{old_name}' to '{new_function_name}'")
+		print(f"Failed to rename '{old_name}' to '{new_function_name}'.")
 
 def get_structure_member_name(structure_name, member_offset):
 	struc_id = ida_struct.get_struc_id(structure_name)
@@ -795,6 +815,23 @@ class find_asg_visitor(idaapi.ctree_visitor_t):
 						if member_name == self.search_var_type_member:
 							self.found_asg = expr
 							return 1  # Stop traversal
+		return 0  # Continue traversal
+
+# Iterate through a C-tree to find the Nth assignment of a memory offset
+class find_nth_obj_asg_visitor(idaapi.ctree_visitor_t):
+	def __init__(self, nth):
+		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
+		self.found_asg = None
+		self.count = 0
+		self.count_target = nth
+
+	def visit_expr(self, expr):
+		if expr.op == idaapi.cot_asg:
+			if expr.x.op  == idaapi.cot_obj:
+				if self.count == self.count_target:
+					self.found_asg = expr
+					return 1  # Stop traversal
+				self.count += 1
 		return 0  # Continue traversal
 
 def apply_structure_to_stack_parameter(called_name, function_address, call_expr, idx_param, struct_name, new_var_name):
@@ -996,7 +1033,7 @@ def rename_function_WppInitKm():
 	# Clear the decompilation caches to force the usage of the type _WPP_TRACE_CONTROL_BLOCK
 	ida_hexrays.clear_cached_cfuncs()
 
-def find_WPP_CONTROL_GUID():
+def rename_offset_WPP_CONTROL_GUID():
 	WPP_MAIN_CB_address = idc.get_name_ea_simple('WPP_MAIN_CB')
 	if WPP_MAIN_CB_address != idc.BADADDR:
 		xrefs = idautils.XrefsTo(WPP_MAIN_CB_address+4) #_WPP_TRACE_CONTROL_BLOCK.ControlGuid
@@ -1019,6 +1056,98 @@ def find_WPP_CONTROL_GUID():
 				print(f"Could not find a assignment of '{WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME}.ControlGuid' in the function {idc.get_func_name(calling_function.start_ea)}.")
 	else:
 		print(f"Could not find 'WPP_MAIN_CB'")
+
+def rename_function_WppLoadTracingSupport():
+	# Search the string "EtwRegisterClassicProvider"
+	# Encode the string to UTF-16LE
+	search_string_bytes = "EtwRegisterClassicProvider".encode('utf-16le')
+	
+	# Convert the byte string to a hex string for find_binary
+	hex_pattern = "".join(f'{b:02X} ' for b in search_string_bytes)
+	
+	# Start searching from the beginning of the IDB.
+	aEtwRegisterClassicProvider_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), hex_pattern, 16, ida_search.SEARCH_DOWN)
+	if aEtwRegisterClassicProvider_address == idaapi.BADADDR:
+		print(f"EtwRegisterClassicProvider not found !")
+		return
+		
+	ref_to_aEtwRegisterClassicProvider_address = idc.get_first_dref_to(aEtwRegisterClassicProvider_address)
+	
+	# Get the function object containing the target address
+	function = ida_funcs.get_func(ref_to_aEtwRegisterClassicProvider_address)
+	
+	rename_function(function.start_ea,'int __fastcall WppLoadTracingSupport()')
+	
+	# Decompile the function to find memory assignments
+	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+	
+	memory_assignment_data = [
+		(0, 'pfnWppGetVersion', 'first'),
+		(1, 'pfnWppTraceMessage', 'second'),
+		(2, 'pfnWppQueryTraceInformation', 'third'),
+		(3, '_WPP_TRACE_API_SUITE WPPTraceSuite', 'fourth'),
+		(4, 'pfnEtwRegisterClassicProvider', 'fifth'),
+		(5, 'pfnEtwUnregister', 'sixth'),
+	]
+	
+	for nth, offset_name, string_nth in memory_assignment_data:
+		visitor = find_nth_obj_asg_visitor(nth)
+		visitor.apply_to(cfunc.body, None)
+		asg_expr = visitor.found_asg
+		if asg_expr:
+			rename_offset(asg_expr.x.obj_ea, offset_name)
+		else:
+			print(f"Could not find {string_nth} memory assignment in the function {idc.get_func_name(function.start_ea)}.")
+			return
+	
+	# Clear the decompilation caches to force the usage of the type _WPP_TRACE_API_SUITE
+	ida_hexrays.clear_cached_cfuncs()
+
+def rename_function_memset():
+	memset_size = 0x68
+	memset_patterns = [
+	'12 1F 03 46 1A DB 11 F0 FF 01 41 EA 01 21 13 F0 03 0C 1D D1 41 EA 01 41 0C 3A 8C 46'
+	]
+	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memset_patterns[0], 16, ida_search.SEARCH_DOWN)
+	if function_address == idc.BADADDR:
+		print(f"Cannot find function 'memset'.")
+		return
+	rename_function(function_address,'void *__fastcall memset(void *dest, int c, size_t count)')
+
+def rename_function_memmove():
+	memmove_size = 0x106
+	memmove_patterns = [
+	'43 1A 93 42 BF F4 DC AE 10 2A 91 F8 00 F0 70 D2 DF E8 02 F0 0A 08 0B 0E 13 16 1B 20'
+	]
+	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memmove_patterns[0], 16, ida_search.SEARCH_DOWN)
+	if function_address == idc.BADADDR:
+		print(f"Cannot find function 'memmove'.")
+		return
+	print(f"Function 'memmove' start={hex(function_address)} end={hex(function_address+memmove_size)}") 
+	# Check if the function already exists
+	if ida_funcs.get_func(function_address) is None:
+		#Delete existing items
+		for i in range(memmove_size):
+			ida_bytes.del_items(function_address + i, ida_bytes.get_item_size(function_address + i))
+		#Delete parent functions (to delete existing "chunk")
+		for i in range(memmove_size):
+			parent_function = ida_funcs.get_func(function_address + i)
+			if parent_function:
+				print(f"Delete function at {hex(parent_function.start_ea)}")
+				ida_funcs.del_func(parent_function.start_ea)
+		# Force disassembly of the bytes into instructions
+		current_ea = function_address
+		while current_ea < function_address+memmove_size:
+			insn_len = idc.create_insn(current_ea)
+			if insn_len <= 0:
+				print(f"Failed to disassemble instruction at {hex(current_ea)}, maybe a 'jump table for switch statement' ?")
+				break
+			current_ea += insn_len
+		# Add the function
+		if not ida_funcs.add_func(function_address, function_address+memmove_size):
+			print(f"Failed to create function 'memmove' at {hex(function_address)}")
+			return
+	rename_function(function_address,'void *__fastcall memmove(void *dest, const void *src, size_t count)')
 
 def rename_functions_and_offsets():
 	# Get the address of the main entry point
@@ -1152,4 +1281,8 @@ def rename_functions_and_offsets():
 	
 	rename_function_McGenEventRegister()
 	rename_function_WppInitKm()
-	find_WPP_CONTROL_GUID()
+	rename_offset_WPP_CONTROL_GUID()
+	rename_function_WppLoadTracingSupport()
+	rename_function_memset()
+	rename_function_memmove()
+	#todo https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/summary-of-kernel-mode-safe-string-functions

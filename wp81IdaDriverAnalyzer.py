@@ -47,6 +47,7 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 			
 			wdf.add_others_structures()
 			wdf.add_WDFFUNCTIONS_structure()
+			wdf.add_enums()
 			wdf.rename_functions_and_offsets()
 			
 			print("Wp81 Driver Analyzer: finished.")
