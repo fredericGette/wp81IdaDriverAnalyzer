@@ -34,6 +34,8 @@ WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME = "_WPP_TRACE_CONTROL_BLOCK"
 DEVICE_OBJECT_STRUCT_NAME = "_DEVICE_OBJECT"
 WDF_BIND_INFO_STRUCT_NAME = "_WDF_BIND_INFO"
 WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME = "_WDF_PNPPOWER_EVENT_CALLBACKS"
+WDF_FILEOBJECT_CONFIG_STRUCT_NAME = "_WDF_FILEOBJECT_CONFIG"
+WDF_IO_QUEUE_CONFIG_STRUCT_NAME = "_WDF_IO_QUEUE_CONFIG"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -652,6 +654,24 @@ def add_others_structures():
 		]
 	)
 	create_structure(
+		'WDFREQUEST',
+		[
+			("unused", 0x00, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
+		'WDFFILEOBJECT',
+		[
+			("unused", 0x00, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
+		'WDFQUEUE',
+		[
+			("unused", 0x00, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
 		WDF_OBJECT_ATTRIBUTES_STRUCT_NAME,
 		[
 			("Size", 0x00, idc.FF_DWORD, -1, 4),
@@ -753,12 +773,47 @@ def add_others_structures():
 			("EvtDeviceUsageNotificationEx", 0x44, idc.FF_DWORD, -1, 4),
 		]
 	)
+	create_structure(
+		WDF_FILEOBJECT_CONFIG_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("EvtDeviceFileCreate", 0x04, idc.FF_DWORD, -1, 4),
+			("EvtFileClose", 0x08, idc.FF_DWORD, -1, 4),
+			("EvtFileCleanup", 0x0C, idc.FF_DWORD, -1, 4),
+			("AutoForwardCleanupClose", 0x10, idc.FF_DWORD, -1, 4),
+			("FileObjectClass", 0x14, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
+		WDF_IO_QUEUE_CONFIG_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("DispatchType", 0x04, idc.FF_DWORD, -1, 4),
+			("PowerManaged", 0x08, idc.FF_DWORD, -1, 4),
+			("AllowZeroLengthRequests", 0x0C, idc.FF_BYTE, -1, 1),
+			("DefaultQueue", 0x0D, idc.FF_BYTE, -1, 1),
+			("EvtIoDefault", 0x10, idc.FF_DWORD, -1, 4),
+			("EvtIoRead", 0x14, idc.FF_DWORD, -1, 4),
+			("EvtIoWrite", 0x18, idc.FF_DWORD, -1, 4),
+			("EvtIoDeviceControl", 0x1C, idc.FF_DWORD, -1, 4),
+			("EvtIoInternalDeviceControl", 0x20, idc.FF_DWORD, -1, 4),
+			("EvtIoStop", 0x24, idc.FF_DWORD, -1, 4),
+			("EvtIoResume", 0x28, idc.FF_DWORD, -1, 4),
+			("EvtIoCanceledOnQueue", 0x2C, idc.FF_DWORD, -1, 4),
+			("Settings", 0x30, idc.FF_DWORD, -1, 4),
+			("Driver", 0x34, idc.FF_DWORD, -1, 4),
+		]
+	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Error when adding local type 'wchar_t'!")
 	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
 		print("Error when adding local type 'size_t'!")
 	if idc.set_local_type(-1,"typedef int NTSTATUS;", idc.PT_SIL) == 0:
 		print("Error when adding local type 'NTSTATUS'!")
+	if idc.set_local_type(-1,"typedef void *WDFOBJECT;", idc.PT_SIL) == 0:
+		print("Error when adding local type 'WDFOBJECT'!")
+	if idc.set_local_type(-1,"typedef unsigned int ULONG;", idc.PT_SIL) == 0:
+		print("Error when adding local type 'ULONG'!")
 
 def add_enums():
 	enum_id = idc.add_enum(-1, '_WPP_TRACE_API_SUITE', 0x00000010)
@@ -933,6 +988,8 @@ def apply_structure_to_stack_parameter(called_name, function_address, call_expr,
 		print(f"In '{function_name}', the function '{called_name}' does not have a {idx_param+1}th parameter.")
 		return
 	param_expr = call_expr.a[idx_param]
+	if param_expr.op == idaapi.cot_ref: # &variable
+		param_expr = param_expr.x
 	if (param_expr.op != idaapi.cot_var) or (not param_expr.v.getv().is_stk_var()):
 		print(f"In {function_name}, the {idx_param+1}th parameter of the function '{called_name}' is not a stack frame variable.")
 		return
@@ -1543,6 +1600,112 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceRelationsQuery', "void __fastcall EvtWdfDeviceRelationsQuery(WDFDEVICE Device, DEVICE_RELATION_TYPE RelationType)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceUsageNotificationEx', "NTSTATUS __fastcall EvtWdfDeviceUsageNotificationEx(WDFDEVICE Device, WDF_SPECIAL_FILE_TYPE NotificationType, BOOLEAN IsInNotificationPath)")
 
+def rename_callbacks_WdfDeviceInitSetFileObjectConfig():
+	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetFileObjectConfig')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfDeviceInitSetFileObjectConfig is never called.")
+		return
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfDeviceInitSetFileObjectConfig
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_call_visitor('WdfDeviceInitSetFileObjectConfig')
+		visitor.apply_to(cfunc.body, None)
+		call_expr = visitor.found_call
+		if not call_expr:
+			print(f"Could not find a call to 'WdfFunctions.WdfDeviceInitSetFileObjectConfig' in the function '{function_name}'!")
+			return
+		
+		# Access the 3th parameter (FileObjectConfig) and change its type.
+		apply_structure_to_stack_parameter('WdfDeviceInitSetFileObjectConfig', function.start_ea, call_expr, 2, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, "FileObjectConfig")
+		
+		# Invalidate the decompilation cache and close all related pseudocode windows.
+		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+		
+		# Decompile again the function to find the assignments of FileObjectConfig
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		
+		rename_callback(function_name, cfunc, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, 'EvtDeviceFileCreate', "void __fastcall EvtWdfDeviceFileCreate(WDFDEVICE Device, WDFREQUEST Request, WDFFILEOBJECT FileObject)")
+		rename_callback(function_name, cfunc, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, 'EvtFileClose', "void __fastcall EvtWdfFileClose(WDFFILEOBJECT FileObject)")
+		rename_callback(function_name, cfunc, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, 'EvtFileCleanup', "void __fastcall EvtWdfFileCleanup(WDFFILEOBJECT FileObject)")
+
+def rename_callbacks_WdfDeviceCreate():
+	wdf_function_address = find_wdf_function_address('WdfDeviceCreate')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfDeviceCreate is never called.")
+		return
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfDeviceCreate
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_call_visitor('WdfDeviceCreate')
+		visitor.apply_to(cfunc.body, None)
+		call_expr = visitor.found_call
+		if not call_expr:
+			print(f"Could not find a call to 'WdfFunctions.WdfDeviceCreate' in the function '{function_name}'!")
+			return
+		
+		# Access the 3th parameter (DeviceAttributes) and change its type.
+		apply_structure_to_stack_parameter('WdfDeviceCreate', function.start_ea, call_expr, 2, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DeviceAttributes")
+		
+		# Invalidate the decompilation cache and close all related pseudocode windows.
+		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+		
+		# Decompile again the function to find the assignments of DeviceAttributes
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		
+		rename_callback(function_name, cfunc, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'EvtCleanupCallback', "void __fastcall EvtWdfObjectContextCleanup(WDFOBJECT Object)")
+		rename_callback(function_name, cfunc, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'EvtDestroyCallback', "void __fastcall EvtWdfObjectContextDestroy(WDFOBJECT Object)")
+
+def rename_callbacks_WdfIoQueueCreate():
+	wdf_function_address = find_wdf_function_address('WdfIoQueueCreate')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfIoQueueCreate is never called.")
+		return
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfIoQueueCreate
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_call_visitor('WdfIoQueueCreate')
+		visitor.apply_to(cfunc.body, None)
+		call_expr = visitor.found_call
+		if not call_expr:
+			print(f"Could not find a call to 'WdfFunctions.WdfIoQueueCreate' in the function '{function_name}'!")
+			return
+		
+		# Access the 3th parameter (DeviceAttributes) and change its type.
+		apply_structure_to_stack_parameter('WdfIoQueueCreate', function.start_ea, call_expr, 2, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, "Config")
+		
+		# Invalidate the decompilation cache and close all related pseudocode windows.
+		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+		
+		# Decompile again the function to find the assignments of Config
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoDefault', "void __fastcall EvtWdfIoQueueIoDefault(WDFQUEUE Queue, WDFREQUEST Request)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoRead', "void __fastcall EvtWdfIoQueueIoRead(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoWrite', "void __fastcall EvtWdfIoQueueIoWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoDeviceControl', "void __fastcall EvtWdfIoQueueIoDeviceControl(WDFQUEUE Queue, WDFREQUEST Request, size_t OutputBufferLength, size_t InputBufferLength, ULONG IoControlCode)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoInternalDeviceControl', "void __fastcall EvtWdfIoQueueIoInternalDeviceControl(WDFQUEUE Queue, WDFREQUEST Request, size_t OutputBufferLength, size_t InputBufferLength, ULONG IoControlCode)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoStop', "void __fastcall EvtWdfIoQueueIoStop(WDFQUEUE Queue, WDFREQUEST Request, ULONG ActionFlags)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoResume', "void __fastcall EvtWdfIoQueueIoResume(WDFQUEUE Queue, WDFREQUEST Request)")
+		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoCanceledOnQueue', "void __fastcall EvtWdfIoQueueIoCanceledOnQueue(WDFQUEUE Queue, WDFREQUEST Request)")
+
 def rename_functions_and_offsets():
 	# Get the address of the main entry point
 	entry_point_address = ida_entry.get_entry(ida_entry.get_entry_ordinal(0))
@@ -1689,3 +1852,6 @@ def rename_functions_and_offsets():
 	rename_functions_EventWrite()
 	rename_functions_DoTraceMessage()
 	rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks()
+	rename_callbacks_WdfDeviceInitSetFileObjectConfig()
+	rename_callbacks_WdfDeviceCreate()
+	rename_callbacks_WdfIoQueueCreate()
