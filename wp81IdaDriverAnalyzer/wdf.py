@@ -36,6 +36,7 @@ WDF_BIND_INFO_STRUCT_NAME = "_WDF_BIND_INFO"
 WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME = "_WDF_PNPPOWER_EVENT_CALLBACKS"
 WDF_FILEOBJECT_CONFIG_STRUCT_NAME = "_WDF_FILEOBJECT_CONFIG"
 WDF_IO_QUEUE_CONFIG_STRUCT_NAME = "_WDF_IO_QUEUE_CONFIG"
+WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME = "_WDF_QUERY_INTERFACE_CONFIG"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -804,6 +805,18 @@ def add_others_structures():
 			("Driver", 0x34, idc.FF_DWORD, -1, 4),
 		]
 	)
+	create_structure(
+		WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("Interface", 0x04, idc.FF_DWORD, -1, 4),
+			("InterfaceType", 0x08, idc.FF_DWORD, -1, 4),
+			("SendQueryToParentStack", 0x0C, idc.FF_BYTE, -1, 1),
+			("EvtDeviceProcessQueryInterfaceRequest", 0x10, idc.FF_DWORD, -1, 4),
+			("ImportInterface", 0x14, idc.FF_BYTE, -1, 1),
+			("align", 0x15, idc.FF_BYTE, -1, 3),
+		]
+	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Error when adding local type 'wchar_t'!")
 	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
@@ -864,6 +877,11 @@ def is_renamed_function(function_address):
 	original_name = f"sub_{function_address:X}"
 	return function_name != original_name
 
+def is_renamed_offset(offset_address):
+	offset_name = idc.get_name(offset_address)
+	original_name = f"off_{offset_address:X}"
+	return offset_name != original_name
+
 def rename_function(function_address, new_proto, force=False):
 	old_name = idc.get_name(function_address)
 	print(f"Try to rename function '{old_name}' to '{new_proto}': ", end='')
@@ -901,13 +919,13 @@ def get_structure_member_name(structure_name, member_offset):
 	member_name = ida_struct.get_member_name(member_id)
 	return member_name
 
-# Iterate through a C-tree to find the call to a WDF function or a simple function
+# Iterate through a C-tree to find all the calls to a WDF function or a simple function
 # The memory address of the WDF function is casted in order to be called
 # example: ((int (__fastcall *)(int, int, int, int *, _WDF_DRIVER_CONFIG *, _DWORD))WdfFunctions.WdfDriverCreate)(...)
-class find_call_visitor(idaapi.ctree_visitor_t):
+class find_all_call_visitor(idaapi.ctree_visitor_t):
 	def __init__(self, search_function_name):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
-		self.found_call = None
+		self.list_found_call = []
 		self.search_function_name = search_function_name
 
 	def visit_expr(self, expr):
@@ -919,25 +937,22 @@ class find_call_visitor(idaapi.ctree_visitor_t):
 						if str(expr.x.x.x.type) == 'WDFFUNCTIONS':
 							member_name = get_structure_member_name(WDFFUNCTIONS_STRUCT_NAME, member_offset)
 							if member_name == self.search_function_name:
-								self.found_call = expr
-								return 1  # Stop traversal
+								self.list_found_call.append(expr)
 				elif expr.x.x.op == idaapi.cot_memptr:
 					if expr.x.x.x.op == idaapi.cot_obj:
 						member_offset = expr.x.x.m
 						if str(expr.x.x.x.type) == 'WDFFUNCTIONS *':
 							member_name = get_structure_member_name(WDFFUNCTIONS_STRUCT_NAME, member_offset)
 							if member_name == self.search_function_name:
-								self.found_call = expr
-								return 1  # Stop traversal
+								self.list_found_call.append(expr)
 			elif expr.x.op  == idaapi.cot_obj: # Case of a call to an imported function or to another function of the driver
 				object_name = idc.get_name(expr.x.obj_ea)
 				if object_name == self.search_function_name:
-					self.found_call = expr
-					return 1  # Stop traversal
+					self.list_found_call.append(expr)
 		return 0  # Continue traversal
 
 # Iterate through a C-tree to find the assignment of a variable of a given type
-class find_asg_visitor(idaapi.ctree_visitor_t):
+class find_asg_type_visitor(idaapi.ctree_visitor_t):
 	def __init__(self, search_var_type, search_var_type_member):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
 		self.found_asg = None
@@ -963,28 +978,37 @@ class find_asg_visitor(idaapi.ctree_visitor_t):
 							return 1  # Stop traversal
 		return 0  # Continue traversal
 
-# Iterate through a C-tree to find the Nth assignment of a memory offset
-class find_nth_obj_asg_visitor(idaapi.ctree_visitor_t):
-	def __init__(self, nth):
+# Iterate through a C-tree to find all the assignments of a variable of a given name
+class find_all_asg_name_visitor(idaapi.ctree_visitor_t):
+	def __init__(self, search_var_name):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
-		self.found_asg = None
-		self.count = 0
-		self.count_target = nth
+		self.list_found_asg = []
+		self.search_var_name = search_var_name
+
+	def visit_expr(self, expr):
+		if expr.op == idaapi.cot_asg:
+			if expr.x.op  == idaapi.cot_var:
+				if expr.x.v.getv().name == self.search_var_name:
+					self.list_found_asg.append(expr)
+		return 0  # Continue traversal
+
+# Iterate through a C-tree to find all the assignments of any memory object
+class find_all_obj_asg_visitor(idaapi.ctree_visitor_t):
+	def __init__(self):
+		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS)
+		self.list_found_asg = []
 
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_asg:
 			if expr.x.op  == idaapi.cot_obj:
-				if self.count == self.count_target:
-					self.found_asg = expr
-					return 1  # Stop traversal
-				self.count += 1
+				self.list_found_asg.append(expr)
 		return 0  # Continue traversal
 
 def apply_structure_to_stack_parameter(called_name, function_address, call_expr, idx_param, struct_name, new_var_name):
 	
 	function_name = idc.get_func_name(function_address)
 	
-	if call_expr.a.size() < idx_param+1: #(+1 because 0-based index
+	if call_expr.a.size() < idx_param+1: # +1 because 0-based index
 		print(f"In '{function_name}', the function '{called_name}' does not have a {idx_param+1}th parameter.")
 		return
 	param_expr = call_expr.a[idx_param]
@@ -1009,19 +1033,35 @@ def apply_structure_to_stack_parameter(called_name, function_address, call_expr,
 
 def rename_offset(offset_address, new_definition):
 	old_name = idc.get_name(offset_address)
-	
+	print(f"Try to rename '{old_name}' to '{new_definition}': ", end='')
 	matches = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', new_definition)
 	if matches:
-		new_name = matches[-1] # get the last match of the capturing group
+		wanted_new_name = matches[-1] # get the last match of the capturing group
 	else:
-		print(f"No match found in {new_definition} for offset {hex(offset_address)}.")
+		print(f"abort, because no name found in {new_definition}.")
 		return
 	
-	idc.set_name(offset_address, new_name)
-	if new_name != new_definition: # there's some type definition in addition to the name.
-		new_type = new_definition.replace(new_name,'') # remove the name to have a correct type.
-		idc.SetType(offset_address, new_type)
-	print(f"Renamed '{old_name}' to '{new_definition}'.")
+	retry = 0
+	new_name = wanted_new_name
+	while old_name!=new_name and idc.get_name_ea_simple(new_name)!=idc.BADADDR and retry < 5:
+		new_name += '_'
+		retry += 1
+	
+	if retry < 5:
+		idc.set_name(offset_address, new_name)
+		if new_name == wanted_new_name:
+			print("done", end='')
+		else:
+			print(f"renamed to {new_name}", end='')
+		if wanted_new_name != new_definition: # there's some type definition in addition to the name.
+			new_type = new_definition.replace(wanted_new_name,'') # remove the name to have a correct type.
+			result = idc.SetType(offset_address, new_type)
+			if not result:
+				print(" but failed to apply type.")
+		print(".")
+	else:
+		print(f"failed to rename to '{wanted_new_name}' after {retry} retries.")
+
 
 def apply_structure_to_offset(offset_address, struct_name):
 	struc_id = ida_struct.get_struc_id(struct_name)
@@ -1091,12 +1131,9 @@ def rename_function_McGenEventRegister():
 	rename_function(McGenEventRegister_function.start_ea, 'int __fastcall McGenEventRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *), void *CallbackContext, unsigned __int64 *RegHandle)', force=True)
 	# Decompile the function McGenEventRegister to find the call to EtwRegister
 	cfunc = ida_hexrays.decompile(McGenEventRegister_function,None,ida_hexrays.DECOMP_NO_WAIT)
-	visitor = find_call_visitor('EtwRegister')
+	visitor = find_all_call_visitor('EtwRegister')
 	visitor.apply_to(cfunc.body, None)
-	call_expr = visitor.found_call
-	if not call_expr:
-		print(f"Could not find a call to 'EtwRegister' in the function McGenEventRegister.")
-		return
+	call_expr = visitor.list_found_call[0] # We expect exactly one call to EtwRegister
 	if call_expr.a.size() < 2: 
 		print("The function call does not have a 2nd parameter.")
 		return
@@ -1116,12 +1153,9 @@ def rename_function_McGenEventRegister():
 			continue
 		# Decompile the calling function to find the call to McGenEventRegister
 		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('McGenEventRegister')
+		visitor = find_all_call_visitor('McGenEventRegister')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'McGenEventRegister' in the function {idc.get_name(calling_function.start_ea)}.")
-			continue
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to McGenEventRegister
 		if call_expr.a.size() < 4: 
 			print(f"In {idc.get_name(calling_function.start_ea)}, the call of 'McGenEventRegister' does not have 4 parameters.")
 			continue
@@ -1184,12 +1218,9 @@ def rename_function_WppInitKm_and_WppCleanupKm():
 		calling_function = ida_funcs.get_func(xref.frm)
 		# Decompile the calling function to find the call to IoWMIRegistrationControl
 		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('IoWMIRegistrationControl')
+		visitor = find_all_call_visitor('IoWMIRegistrationControl')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'IoWMIRegistrationControl' in the function {idc.get_name(calling_function.start_ea)}.")
-			continue
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to IoWMIRegistrationControl
 		if call_expr.a.size() < 2: 
 			print("The function call does not have 2 parameters.")
 			continue
@@ -1219,7 +1250,7 @@ def rename_offset_WPP_CONTROL_GUID():
 				continue
 			# Decompile the calling function to find an assignment
 			cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
-			visitor = find_asg_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'ControlGuid')
+			visitor = find_asg_type_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'ControlGuid')
 			visitor.apply_to(cfunc.body, None)
 			asg_expr = visitor.found_asg
 			if asg_expr:
@@ -1264,15 +1295,14 @@ def rename_function_WppLoadTracingSupport():
 		(5, 'int (__fastcall *)(unsigned __int64) pfnEtwUnregister', 'sixth'),
 	]
 	
-	for nth, offset_name, string_nth in memory_assignment_data:
-		visitor = find_nth_obj_asg_visitor(nth)
-		visitor.apply_to(cfunc.body, None)
-		asg_expr = visitor.found_asg
-		if asg_expr:
-			rename_offset(asg_expr.x.obj_ea, offset_name)
-		else:
+	visitor = find_all_obj_asg_visitor()
+	visitor.apply_to(cfunc.body, None)
+	for n, offset_name, string_nth in memory_assignment_data:
+		if len(visitor.list_found_asg) <= n:
 			print(f"Could not find {string_nth} memory assignment in the function {idc.get_func_name(function.start_ea)}.")
 			return
+		asg_expr = visitor.list_found_asg[n]
+		rename_offset(asg_expr.x.obj_ea, offset_name)
 	
 	# Clear the decompilation caches to force the usage of the type _WPP_TRACE_API_SUITE
 	ida_hexrays.clear_cached_cfuncs()
@@ -1453,7 +1483,7 @@ def rename_function_WppTraceCallback():
 	
 	# Decompile the function to find an assignment
 	cfunc = ida_hexrays.decompile(WppInitKm_address,None,ida_hexrays.DECOMP_NO_WAIT)
-	visitor = find_asg_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'Callback')
+	visitor = find_asg_type_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'Callback')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
 	if asg_expr:
@@ -1525,12 +1555,9 @@ def rename_functions_DoTraceMessage():
 		rename_function(function.start_ea, new_function_name) # We don't change the prototype of the function
 		# Decompile the function to searh the GUID parameter of WppTraceMessage
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('pfnWppTraceMessage')
+		visitor = find_all_call_visitor('pfnWppTraceMessage')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'pfnWppTraceMessage' in the function {new_function_name}.")
-			return
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to pfnWppTraceMessage
 		if call_expr.a.size() < 2: 
 			print("The function call does not have a 3rd parameter.")
 			return
@@ -1542,7 +1569,7 @@ def rename_functions_DoTraceMessage():
 				rename_offset(param_expr.x.obj_ea, f'_GUID WPP_Traceguids_{guid_count:02}')
 
 def rename_callback(function_name, cfunc, structure_name, structure_member_name, callback_prototype):
-	visitor = find_asg_visitor(structure_name, structure_member_name)
+	visitor = find_asg_type_visitor(structure_name, structure_member_name)
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
 	if asg_expr:
@@ -1566,12 +1593,9 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceInitSetPnpPowerEventCallbacks
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('WdfDeviceInitSetPnpPowerEventCallbacks')
+		visitor = find_all_call_visitor('WdfDeviceInitSetPnpPowerEventCallbacks')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'WdfFunctions.WdfDeviceInitSetPnpPowerEventCallbacks' in the function '{function_name}'!")
-			return
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceInitSetPnpPowerEventCallbacks
 		
 		# Access the 3th parameter (PnpPowerEventCallbacks) and change its type.
 		apply_structure_to_stack_parameter('WdfDeviceInitSetPnpPowerEventCallbacks', function.start_ea, call_expr, 2, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, "PnpPowerEventCallbacks")
@@ -1614,12 +1638,9 @@ def rename_callbacks_WdfDeviceInitSetFileObjectConfig():
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceInitSetFileObjectConfig
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('WdfDeviceInitSetFileObjectConfig')
+		visitor = find_all_call_visitor('WdfDeviceInitSetFileObjectConfig')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'WdfFunctions.WdfDeviceInitSetFileObjectConfig' in the function '{function_name}'!")
-			return
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceInitSetFileObjectConfig
 		
 		# Access the 3th parameter (FileObjectConfig) and change its type.
 		apply_structure_to_stack_parameter('WdfDeviceInitSetFileObjectConfig', function.start_ea, call_expr, 2, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, "FileObjectConfig")
@@ -1648,12 +1669,9 @@ def rename_callbacks_WdfDeviceCreate():
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceCreate
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('WdfDeviceCreate')
+		visitor = find_all_call_visitor('WdfDeviceCreate')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'WdfFunctions.WdfDeviceCreate' in the function '{function_name}'!")
-			return
+		call_expr = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceCreate
 		
 		# Access the 3th parameter (DeviceAttributes) and change its type.
 		apply_structure_to_stack_parameter('WdfDeviceCreate', function.start_ea, call_expr, 2, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DeviceAttributes")
@@ -1681,15 +1699,11 @@ def rename_callbacks_WdfIoQueueCreate():
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfIoQueueCreate
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_call_visitor('WdfIoQueueCreate')
+		visitor = find_all_call_visitor('WdfIoQueueCreate')
 		visitor.apply_to(cfunc.body, None)
-		call_expr = visitor.found_call
-		if not call_expr:
-			print(f"Could not find a call to 'WdfFunctions.WdfIoQueueCreate' in the function '{function_name}'!")
-			return
-		
-		# Access the 3th parameter (DeviceAttributes) and change its type.
-		apply_structure_to_stack_parameter('WdfIoQueueCreate', function.start_ea, call_expr, 2, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, "Config")
+		for call_expr in visitor.list_found_call:
+			# Access the 3th parameter (DeviceAttributes) and change its type.
+			apply_structure_to_stack_parameter('WdfIoQueueCreate', function.start_ea, call_expr, 2, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, "Config")
 		
 		# Invalidate the decompilation cache and close all related pseudocode windows.
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
@@ -1705,6 +1719,174 @@ def rename_callbacks_WdfIoQueueCreate():
 		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoStop', "void __fastcall EvtWdfIoQueueIoStop(WDFQUEUE Queue, WDFREQUEST Request, ULONG ActionFlags)")
 		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoResume', "void __fastcall EvtWdfIoQueueIoResume(WDFQUEUE Queue, WDFREQUEST Request)")
 		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoCanceledOnQueue', "void __fastcall EvtWdfIoQueueIoCanceledOnQueue(WDFQUEUE Queue, WDFREQUEST Request)")
+
+def rename_GUID_interface():
+	wdf_function_address = find_wdf_function_address('WdfDeviceCreateDeviceInterface')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfDeviceCreateDeviceInterface is never called.")
+		return
+	count = 0
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfIoQueueCreate
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_all_call_visitor('WdfDeviceCreateDeviceInterface')
+		visitor.apply_to(cfunc.body, None)
+		for call_expr in visitor.list_found_call:
+			if call_expr.a.size() < 3:
+				print(f"In '{function_name}', the function 'WdfDeviceCreateDeviceInterface' does not have a 3rd parameter.")
+				return
+			param_expr = call_expr.a[2]
+			if param_expr.op == idaapi.cot_ref: # pointer
+				param_expr = param_expr.x
+			if param_expr.op == idaapi.cot_obj:
+				if not is_renamed_offset(param_expr.obj_ea):
+					rename_offset(param_expr.obj_ea, f'GUID InterfaceClassGUID_{count:02}')
+					count += 1
+
+def rename_callbacks_WdfDeviceAddQueryInterface():
+	wdf_function_address = find_wdf_function_address('WdfDeviceAddQueryInterface')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfDeviceAddQueryInterface is never called.")
+		return
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfDeviceAddQueryInterface
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_all_call_visitor('WdfDeviceAddQueryInterface')
+		visitor.apply_to(cfunc.body, None)
+		for call_expr in visitor.list_found_call:
+			# Access the 3th parameter (InterfaceConfig) and change its type.
+			apply_structure_to_stack_parameter('WdfDeviceAddQueryInterface', function.start_ea, call_expr, 2, WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME, "InterfaceConfig")
+		
+		# Invalidate the decompilation cache and close all related pseudocode windows.
+		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+		
+		# Decompile again the function to find the assignment of InterfaceType
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_asg_type_visitor(WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME, 'InterfaceType')
+		visitor.apply_to(cfunc.body, None)
+		asg_expr = visitor.found_asg
+		if asg_expr:
+			right_asg_expr = asg_expr.y
+			if right_asg_expr.op == idaapi.cot_cast: # there is a cast
+				right_asg_expr = right_asg_expr.x
+			if right_asg_expr.op == idaapi.cot_ref: # there is a pointer
+				right_asg_expr = right_asg_expr.x
+			if right_asg_expr.op == idaapi.cot_obj:
+					rename_offset(right_asg_expr.obj_ea, 'GUID_query_interface')
+			else:
+				print(f"'{WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME}.InterfaceType' in the function {function_name} is not assigned to a memory object.")
+		else:
+			print(f"Could not find a assignment of '{WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME}.InterfaceType' in the function {function_name}.")
+		
+		# Find the assignment of Interface
+		visitor = find_asg_type_visitor(WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME, 'Interface')
+		visitor.apply_to(cfunc.body, None)
+		asg_expr = visitor.found_asg
+		if asg_expr:
+			right_asg_expr = asg_expr.y
+			if right_asg_expr.op == idaapi.cot_cast: # there is a cast
+				right_asg_expr = right_asg_expr.x
+			if right_asg_expr.op == idaapi.cot_ref: # there is a pointer
+				right_asg_expr = right_asg_expr.x
+			if right_asg_expr.op == idaapi.cot_var and right_asg_expr.v.getv().is_stk_var():
+				variable_name = right_asg_expr.v.getv().name
+				variable_stack_frame_offset = right_asg_expr.v.getv().get_stkoff()
+			else:
+				print(f"'{WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME}.Interface' in the function {function_name} is not assigned to a stack frame variable.")
+				return
+		else:
+			print(f"Could not find a assignment of '{WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME}.Interface' in the function {function_name}.")
+			return
+		
+		# Find the assignment of the stack frame variable with a numerical value > 0
+		visitor = find_all_asg_name_visitor(variable_name)
+		visitor.apply_to(cfunc.body, None)
+		interface_size = 0
+		for asg_expr in visitor.list_found_asg:
+			right_asg_expr = asg_expr.y
+			if right_asg_expr.op == idaapi.cot_num :
+				if right_asg_expr.numval() > 0:
+					interface_size = right_asg_expr.numval()
+					break
+			else:
+				print(f"'{variable_name}' in the function {function_name} is not assigned to a number.")
+				return
+		if interface_size ==0:
+				print(f"Could not find a assignment of '{variable_name}' in the function {function_name} with a value > 0.")
+				return
+
+		# Create a new structure for the interface
+		struc_id = idc.add_struc(-1, 'QUERY_INTERFACE', 0) # -1 adds it at the end, 0 means not a union
+		if struc_id == idc.BADADDR:
+			print(f"Failed to create structure 'QUERY_INTERFACE'!")
+			return
+		
+		idc.add_struc_member(struc_id, 'Size', 0x00, idc.FF_WORD, -1, 2)
+		idc.add_struc_member(struc_id, 'Version', 0x02, idc.FF_WORD, -1, 2)
+		idc.add_struc_member(struc_id, 'Context', 0x04, idc.FF_DWORD, -1, 4)
+		idc.add_struc_member(struc_id, 'InterfaceReference', 0x08, idc.FF_DWORD, -1, 4)
+		idc.add_struc_member(struc_id, 'InterfaceDereference', 0x0C, idc.FF_DWORD, -1, 4)
+		structure_offset = 0x10
+		while structure_offset < interface_size:
+			interfaceFunction_count = int((structure_offset-0x10)/4)
+			idc.add_struc_member(struc_id, f'InterfaceFunction_{interfaceFunction_count:02}', structure_offset, idc.FF_DWORD, -1, 4)
+			structure_offset += 4
+		
+		frame_id = idc.get_frame_id(function.start_ea)
+		#Delete existing members of the stack frame
+		for i in range(interface_size-1):
+			idc.del_struc_member(frame_id, variable_stack_frame_offset + i)
+		result = idc.add_struc_member(frame_id, 'query_interface', variable_stack_frame_offset, idc.FF_STRUCT|idc.FF_DATA, struc_id, interface_size)
+		if result != 0:
+			print(f"Failed to apply structure QUERY_INTERFACE in the stack frame of the function '{function_name}' at the offset {hex(variable_stack_frame_offset)}! Error code : {result}")
+			return
+		print(f"Applyed structure QUERY_INTERFACE in the stack frame of the function '{function_name}' at the offset {hex(variable_stack_frame_offset)}.")
+		
+		# Decompile again the function to find the assignments of query_interface
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		
+		interfaceFunction_count = 0
+		while interfaceFunction_count < int((interface_size-0x10)/4):
+			rename_callback(function_name, cfunc, 'QUERY_INTERFACE', f'InterfaceFunction_{interfaceFunction_count:02}', f'InterfaceFunction_{interfaceFunction_count:02}')
+			interfaceFunction_count += 1
+
+def create_object_contextes():
+	wdf_function_address = find_wdf_function_address('WdfObjectGetTypedContextWorker')
+	# Use XrefsTo to get all cross-references to the target address
+	xrefs = idautils.XrefsTo(wdf_function_address)
+	xrefs_list = list(xrefs)  # Convert the generator to a list
+	# Check if any references were found
+	if len(xrefs_list) < 1:
+		print("WdfObjectGetTypedContextWorker is never called.")
+		return
+	for xref in xrefs_list:
+		function = ida_funcs.get_func(xref.frm)
+		function_name = idc.get_name(function.start_ea)
+		# Decompile the function to find the call to WdfObjectGetTypedContextWorker
+		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		visitor = find_all_call_visitor('WdfObjectGetTypedContextWorker')
+		visitor.apply_to(cfunc.body, None)
+		for call_expr in visitor.list_found_call:
+			if call_expr.a.size() < 3:
+				print(f"In '{function_name}', the function 'WdfObjectGetTypedContextWorker' does not have a 3rd parameter.")
+				continue
+			param_expr = call_expr.a[2]
+			if param_expr.op == idaapi.cot_ref: # pointer
+				param_expr = param_expr.x
+			if param_expr.op == idaapi.cot_obj:
+				rename_wdf_context_type_info(param_expr.obj_ea)
 
 def rename_functions_and_offsets():
 	# Get the address of the main entry point
@@ -1787,12 +1969,9 @@ def rename_functions_and_offsets():
 	
 	# Decompile the function to find the call to WdfDriverCreate
 	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-	visitor = find_call_visitor('WdfDriverCreate')
+	visitor = find_all_call_visitor('WdfDriverCreate')
 	visitor.apply_to(cfunc.body, None)
-	call_expr = visitor.found_call
-	if not call_expr:
-		print(f"Could not find a call to 'WdfFunctions.WdfDriverCreate' in the function {function_name}!")
-		return
+	call_expr = visitor.list_found_call[0] # We expect exactly one call to WdfDriverCreate
 	
 	# Access the 3th parameter (DriverAttributes) and change its type.
 	apply_structure_to_stack_parameter('WdfDriverCreate', function.start_ea, call_expr, 3, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, "DriverAttributes")
@@ -1806,7 +1985,7 @@ def rename_functions_and_offsets():
 	# Decompile again the function to find the assignments of DriverAttributes and DriverConfig
 	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 	
-	visitor = find_asg_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
+	visitor = find_asg_type_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
 	if asg_expr:
@@ -1816,7 +1995,7 @@ def rename_functions_and_offsets():
 	else:
 		print(f"Could not find a assignment of '{WDF_OBJECT_ATTRIBUTES_STRUCT_NAME}.ContextTypeInfo' in the function {function_name}.")
 	
-	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverDeviceAdd')
+	visitor = find_asg_type_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverDeviceAdd')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
 	if asg_expr:
@@ -1826,7 +2005,7 @@ def rename_functions_and_offsets():
 	else:
 		print(f"Could not find a assignment of '{WDF_DRIVER_CONFIG_STRUCT_NAME}.EvtDriverDeviceAdd' in the function {function_name}.")
 	
-	visitor = find_asg_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
+	visitor = find_asg_type_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
 	if asg_expr:
@@ -1855,3 +2034,6 @@ def rename_functions_and_offsets():
 	rename_callbacks_WdfDeviceInitSetFileObjectConfig()
 	rename_callbacks_WdfDeviceCreate()
 	rename_callbacks_WdfIoQueueCreate()
+	rename_GUID_interface()
+	rename_callbacks_WdfDeviceAddQueryInterface()
+	create_object_contextes()
