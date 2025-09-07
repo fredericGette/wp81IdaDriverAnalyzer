@@ -2,14 +2,12 @@ import ida_bytes
 import idaapi
 import idc
 import ida_search
-import ida_struct
 import idautils
 import ida_funcs
 import ida_hexrays
 import ida_entry
 import ida_xref
 import ida_typeinf
-import ida_enum
 import re
 
 """
@@ -497,7 +495,13 @@ def add_WDFFUNCTIONS_structure():
 	hex_pattern = "".join(f'{b:02X} ' for b in search_string_bytes)
 	
 	# Start searching from the beginning of the IDB.
-	aKmdflibrary_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), hex_pattern, 16, ida_search.SEARCH_DOWN)
+	aKmdflibrary_address = ida_bytes.find_bytes(
+		hex_pattern,
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if aKmdflibrary_address == idaapi.BADADDR:
 		print(f"Failed: {action}: KmdfLibrary not found!")
 		return
@@ -524,12 +528,12 @@ def add_WDFFUNCTIONS_structure():
 	rename_offset(ref_to_aKmdflibrary_address-4, '_WDF_BIND_INFO WdfBindInfo') # TODO define structure _WDF_BIND_INFO
 	
 	# check if the structure already exists
-	structure_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
+	structure_id = idc.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
 	if structure_id != -1:
 		# delete old structure
 		idc.del_struc(structure_id)
 	idc.add_struc(-1, WDFFUNCTIONS_STRUCT_NAME, 0)
-	structure_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
+	structure_id = idc.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
 	for func_name in kmdf1_11:
 		idc.add_struc_member(structure_id, func_name, idc.BADADDR, idc.FF_DATA | ida_bytes.FF_DWORD, -1, 4)
 	
@@ -542,7 +546,7 @@ def find_wdf_function_address(function_name):
 	"""
 	Finds the offset of a structure member by name.
 	"""
-	struct_id = ida_struct.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
+	struct_id = idc.get_struc_id(WDFFUNCTIONS_STRUCT_NAME)
 	if struct_id == idc.BADADDR:
 		print(f"Structure '{WDFFUNCTIONS_STRUCT_NAME}' not found.")
 		return idc.BADADDR
@@ -559,7 +563,13 @@ def find_function_address(size, patterns):
 		if func_size == size:
 			for pattern in patterns:
 				# Search for the pattern within the function's start and end addresses
-				ea = ida_search.find_binary(f.start_ea, f.end_ea, pattern, 16, ida_search.SEARCH_DOWN)
+				ea = ida_bytes.find_bytes(
+					pattern,
+					f.start_ea,
+					range_end=f.end_ea,
+					flags=ida_bytes.BIN_SEARCH_FORWARD,
+					radix=16
+				)
 				if ea == f.start_ea:
 					return func_ea
 	return idc.BADADDR
@@ -843,7 +853,7 @@ def add_enums():
 		"WppTraceMaxSuite": 5
 	}
 	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, ida_enum.DEFMASK)
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
 	
 	enum_id = idc.add_enum(-1, '_TRACE_INFORMATION_CLASS', 0x00000010)
 	members_to_add = {
@@ -866,7 +876,7 @@ def add_enums():
 		"MaxTraceInformationClass": 0x10
 	}
 	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, ida_enum.DEFMASK)
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
 
 def extract_function_name_from_proto(proto):
 	# Split the string by opening parenthesis
@@ -915,10 +925,8 @@ def rename_function(function_address, new_proto, force=False):
 		print(f"Failed: {action}: Failed to rename to '{wanted_new_function_name}' after {retry} retries!")
 
 def get_structure_member_name(structure_name, member_offset):
-	struc_id = ida_struct.get_struc_id(structure_name)
-	struc_t = ida_struct.get_struc (struc_id)
-	member_id = ida_struct.get_member_id(struc_t, member_offset)
-	member_name = ida_struct.get_member_name(member_id)
+	sid = idc.get_struc_id(structure_name)
+	member_name = idc.get_member_name(sid, member_offset)
 	return member_name
 
 # Iterate through a C-tree to find all the calls to a WDF function or a simple function
@@ -1043,9 +1051,9 @@ def apply_structure_to_stack_parameter(called_name, function_address, call_expr,
 	if (param_expr.op != idaapi.cot_var) or (not param_expr.v.getv().is_stk_var()):
 		print(f"In {function_name}, the {idx_param+1}th parameter of the function '{called_name}' is not a stack frame variable.")
 		return
-	struc_id = ida_struct.get_struc_id(struct_name)
-	s = ida_struct.get_struc(struc_id)
-	struc_size = ida_struct.get_struc_size(s)
+	struc_id = idc.get_struc_id(struct_name)
+	tid = ida_typeinf.get_named_type_tid(struct_name)
+	struc_size = idc.get_struc_size(tid)
 	frame_id = idc.get_frame_id(function_address)
 	stack_frame_offset = param_expr.v.getv().get_stkoff()
 	action += f" at the offset {hex(stack_frame_offset)}"
@@ -1090,9 +1098,9 @@ def rename_offset(offset_address, new_definition):
 
 def apply_structure_to_offset(offset_address, struct_name):
 	action = f"Apply structure {struct_name} at the memory offset {hex(offset_address)}"
-	struc_id = ida_struct.get_struc_id(struct_name)
-	s = ida_struct.get_struc(struc_id)
-	struc_size = ida_struct.get_struc_size(s)
+	struc_id = idc.get_struc_id(struct_name)
+	tid = ida_typeinf.get_named_type_tid(struct_name)
+	struc_size = idc.get_struc_size(tid)
 	#Delete existing items
 	for i in range(struc_size-1):
 		ida_bytes.del_items(offset_address + i, ida_bytes.get_item_size(offset_address + i))
@@ -1296,10 +1304,16 @@ def rename_function_WppLoadTracingSupport():
 	hex_pattern = "".join(f'{b:02X} ' for b in search_string_bytes)
 	
 	# Start searching from the beginning of the IDB.
-	aEtwRegisterClassicProvider_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), hex_pattern, 16, ida_search.SEARCH_DOWN)
+	aEtwRegisterClassicProvider_address = ida_bytes.find_bytes(
+		hex_pattern,
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)	
 	if aEtwRegisterClassicProvider_address == idaapi.BADADDR:
 		return
-		
+	
 	ref_to_aEtwRegisterClassicProvider_address = idc.get_first_dref_to(aEtwRegisterClassicProvider_address)
 	
 	# Get the function object containing the target address
@@ -1335,17 +1349,29 @@ def rename_function_memset():
 	memset_patterns = [
 	'12 1F 03 46 1A DB 11 F0 FF 01 41 EA 01 21 13 F0 03 0C 1D D1 41 EA 01 41 0C 3A 8C 46'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memset_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memset_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'void *__fastcall memset(void *dest, int c, size_t count)', force=True)
 
 def rename_function_memcmp():
-	memset_size = 0x9C
-	memset_patterns = [
+	memcmp_size = 0x9C
+	memcmp_patterns = [
 	'04 2A ?? ?? 40 EA 01 03 13 F0 01 0F ?? ?? 13 F0 02 0F ?? ?? 12 1F ?? ?? 50 F8 04 3B'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memset_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcmp_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'int __fastcall memcmp(const void *buffer1, const void *buffer2, size_t count)', force=True)
@@ -1355,7 +1381,13 @@ def rename_function_memmove():
 	memmove_patterns = [
 	'43 1A 93 42 BF F4 DC AE 10 2A 91 F8 00 F0 70 D2 DF E8 02 F0 0A 08 0B 0E 13 16 1B 20'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memmove_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memmove_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	# Check if the function already exists
@@ -1389,7 +1421,13 @@ def rename_function_memmove():
 	memcpy_forward_new_patterns = [
 	'91 F8 00 F0 10 2A 03 46 ?? ?? DF E8 02 F0 0A 08 0B 0E 13 16 1B 20 29 2E 37 40 4B 54'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memcpy_forward_new_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcpy_forward_new_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'int __fastcall _memcpy_forward_new(int result, unsigned int, int)', force=True)
@@ -1397,7 +1435,13 @@ def rename_function_memmove():
 	memcpy_forward_large_integer_patterns = [
 	'5F EA C3 7C 2D E9 F0 4B 0D F1 18 0B ?? ?? 11 F8 01 4B 52 1E 03 F8 01 4B 5F EA C3 7C'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memcpy_forward_large_integer_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcpy_forward_large_integer_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'void __fastcall _memcpy_forward_large_integer(int, char *, unsigned int, _BYTE *)', force=True)
@@ -1405,7 +1449,13 @@ def rename_function_memmove():
 	memcpy_forward_large_neon_patterns = [
 	'2D E9 30 48 0D F1 08 0B 20 3A ?? ?? 20 3A 91 F8 20 F0 ?? ?? 91 F8 40 F0 20 3A 21 F9'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memcpy_forward_large_neon_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcpy_forward_large_neon_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'void __fastcall _memcpy_forward_large_neon(int, __int64 *, unsigned int, int)', force=True)
@@ -1413,7 +1463,13 @@ def rename_function_memmove():
 	memcpy_decide_patterns = [
 	'2D E9 30 48 0D F1 08 0B EF F3 00 84 14 F0 0F 04 ?? ?? 10 EE 10 4F C4 F3 07 65 24 09'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memcpy_decide_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcpy_decide_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'int __fastcall _memcpy_decide()', force=True)
@@ -1427,7 +1483,13 @@ def rename_function_memmove():
 	memcpy_reverse_large_integer_patterns = [
 	'83 18 89 18 5F EA C3 7C 11 F8 20 FC 2D E9 F0 4B 0D F1 18 0B ?? ?? 11 F8 01 4D 52 1E'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), memcpy_reverse_large_integer_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		memcpy_reverse_large_integer_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'int __fastcall _memcpy_reverse_large_integer(int result, int, unsigned int)', force=True)
@@ -1438,7 +1500,13 @@ def rename_function_ppgsfailure():
 	ppgsfailure_patterns = [
 	'10 B5 6C 46 EC 46 2C F0 07 0C E5 46 ?? ?? ?? ?? A5 46 10 BD'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), ppgsfailure_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		ppgsfailure_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'void __fastcall _ppgsfailure()', force=True)
@@ -1453,9 +1521,15 @@ def rename_function_ppgsfailure():
 	rename_function(report_gsfailure_address,'void __fastcall __noreturn _report_gsfailure(unsigned int StackCookie)', force=True)
 	
 	GSHandlerCheck_patterns = [
-	'2D E9 00 48 EB 46 DB 69 1B 68 33 F0  03 02 50 58 13 F0 01 0F'
+	'2D E9 00 48 EB 46 DB 69 1B 68 33 F0 03 02 50 58 13 F0 01 0F'
 	]
-	function_address = ida_search.find_binary(idc.get_inf_attr(idc.INF_MIN_EA), idc.get_inf_attr(idc.INF_MAX_EA), GSHandlerCheck_patterns[0], 16, ida_search.SEARCH_DOWN)
+	function_address = ida_bytes.find_bytes(
+		GSHandlerCheck_patterns[0],
+		idc.get_inf_attr(idc.INF_MIN_EA),
+		range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+		flags=ida_bytes.BIN_SEARCH_FORWARD,
+		radix=16
+	)
 	if function_address == idc.BADADDR:
 		return
 	rename_function(function_address,'int __fastcall _GSHandlerCheck(_EXCEPTION_RECORD *ExceptionRecord, void *EstablisherFrame, _CONTEXT *ContextRecord, _DISPATCHER_CONTEXT *DispatcherContext)', force=True)
@@ -1931,9 +2005,9 @@ def rename_functions_and_offsets():
 	
 	if (entry_function.end_ea - entry_function.start_ea) == FxDriverEntry_size:
 			if (
-				entry_function.start_ea == ida_search.find_binary(entry_function.start_ea, entry_function.end_ea, FxDriverEntry_patterns[0], 16, ida_search.SEARCH_DOWN) 
+				entry_function.start_ea == ida_bytes.find_bytes(FxDriverEntry_patterns[0], entry_function.start_ea, range_end=entry_function.end_ea, flags=ida_bytes.BIN_SEARCH_FORWARD,radix=16)
 				or 
-				entry_function.start_ea == ida_search.find_binary(entry_function.start_ea, entry_function.end_ea, FxDriverEntry_patterns[1], 16, ida_search.SEARCH_DOWN)
+				entry_function.start_ea == ida_bytes.find_bytes(FxDriverEntry_patterns[1], entry_function.start_ea, range_end=entry_function.end_ea, flags=ida_bytes.BIN_SEARCH_FORWARD,radix=16)
 				):
 				print(f"Done  : {action}")
 			else:
