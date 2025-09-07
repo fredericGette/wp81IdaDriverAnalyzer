@@ -7,12 +7,12 @@ import ida_kernwin
 import traceback
 
 from wp81IdaDriverAnalyzer import wdf
+from wp81IdaDriverAnalyzer import ui
 
 # The main plugin class. It must inherit from ida_idaapi.plugin_t
 class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
-	# Plugin flags. PLUGIN_UNL means the plugin can be unloaded.
-	# PLUGIN_MULTI means multiple instances of the plugin can be loaded.
-	flags = ida_idaapi.PLUGIN_UNL
+	# Keep the plugin in memory after execution ('run' function) in order to keep the 'hooks' active
+	flags = ida_idaapi.PLUGIN_KEEP
 	
 	# A brief comment about the plugin
 	comment = "Assist reverse engineering of Windows Phone 8.1 drivers"
@@ -32,9 +32,17 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		# Print a message to IDA's Output window to confirm loading
 		print("Wp81 Driver Analyzer: Init called.")
 		
-		# We can add checks here, e.g., if a database is open.
-		# For this simple plugin, we always return PLUGIN_OK.
-		return ida_idaapi.PLUGIN_OK
+		wdf.add_type_NTSTATUS() # required by action "Set NTSTATUS"
+		ui.create_actions()
+		
+		# Keep a reference to the UI_Hooks object to avoid garbage collection
+		self.UI_hooks = ui.create_UI_hooks()
+		self.UI_hooks.hook()
+		self.Hint_hooks = ui.create_Hint_hooks()
+		self.Hint_hooks.hook()
+		
+		# Returns PLUGIN_KEEP to keep the plugin in memory.
+		return ida_idaapi.PLUGIN_KEEP
 
 	def run(self, arg):
 		"""
