@@ -32,14 +32,11 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		# Print a message to IDA's Output window to confirm loading
 		print("Wp81 Driver Analyzer: Init called.")
 		
-		wdf.add_type_NTSTATUS() # required by action "Set NTSTATUS"
 		ui.create_actions()
 		
-		# Keep a reference to the UI_Hooks object to avoid garbage collection
+		# Keep a reference to the Hooks objects to avoid garbage collection
 		self.UI_hooks = ui.create_UI_hooks()
 		self.UI_hooks.hook()
-		self.Hint_hooks = ui.create_Hint_hooks()
-		self.Hint_hooks.hook()
 		
 		# Returns PLUGIN_KEEP to keep the plugin in memory.
 		return ida_idaapi.PLUGIN_KEEP
@@ -53,9 +50,8 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		try:
 			ida_kernwin.show_wait_box("HIDECANCEL\nWp81 Driver Analyzer: Analyzing")
 			
-			wdf.add_others_structures()
-			wdf.add_WDFFUNCTIONS_structure()
 			wdf.add_enums()
+			wdf.add_structures()
 			wdf.rename_functions_and_offsets()
 			
 			print("Wp81 Driver Analyzer: finished.")
