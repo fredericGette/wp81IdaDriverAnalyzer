@@ -79,10 +79,10 @@ kmdf1_11 = [
 	("WdfDeviceAddRemovalRelationsPhysicalDevice",None),
 	("WdfDeviceRemoveRemovalRelationsPhysicalDevice",None),
 	("WdfDeviceClearRemovalRelationsDevices",None),
-	("WdfDeviceGetDriver",None),
+	("WdfDeviceGetDriver","typedef WDFDRIVER __fastcall WDF_DEVICE_GET_DRIVER(int, WDFDEVICE Device);"),
 	("WdfDeviceRetrieveDeviceName",None),
 	("WdfDeviceAssignMofResourceName",None),
-	("WdfDeviceGetIoTarget",None),
+	("WdfDeviceGetIoTarget","typedef WDFIOTARGET __fastcall WDF_DEVICE_GET_IO_TARGET(int, WDFDEVICE Device);"),
 	("WdfDeviceGetDevicePnpState",None),
 	("WdfDeviceGetDevicePowerState",None),
 	("WdfDeviceGetDevicePowerPolicyState",None),
@@ -95,9 +95,9 @@ kmdf1_11 = [
 	("WdfDeviceGetAlignmentRequirement",None),
 	("WdfDeviceSetAlignmentRequirement",None),
 	("WdfDeviceInitFree",None),
-	("WdfDeviceInitSetPnpPowerEventCallbacks",None),
+	("WdfDeviceInitSetPnpPowerEventCallbacks","typedef VOID __fastcall WDF_DEVICE_INIT_SET_PNP_POWER_EVENT_CALLBACKS(int, WDFDEVICE_INIT *DeviceInit, _WDF_PNPPOWER_EVENT_CALLBACKS *PnpPowerEventCallbacks);"),
 	("WdfDeviceInitSetPowerPolicyEventCallbacks",None),
-	("WdfDeviceInitSetPowerPolicyOwnership",None),
+	("WdfDeviceInitSetPowerPolicyOwnership","typedef VOID __fastcall WDF_DEVICE_INIT_SET_POWER_POLICY_OWNERSHIP(int, WDFDEVICE_INIT *DeviceInit, BOOLEAN IsPowerPolicyOwner);"),
 	("WdfDeviceInitRegisterPnpStateChangeCallback",None),
 	("WdfDeviceInitRegisterPowerStateChangeCallback",None),
 	("WdfDeviceInitRegisterPowerPolicyStateChangeCallback",None),
@@ -107,7 +107,7 @@ kmdf1_11 = [
 	("WdfDeviceInitSetPowerPageable",None),
 	("WdfDeviceInitSetPowerInrush",None),
 	("WdfDeviceInitSetDeviceType",None),
-	("WdfDeviceInitAssignName",None),
+	("WdfDeviceInitAssignName","typedef NTSTATUS __fastcall WDF_DEVICE_INIT_ASSIGN_NAME(int, WDFDEVICE_INIT *DeviceInit, _UNICODE_STRING *DeviceName);"),
 	("WdfDeviceInitAssignSDDLString",None),
 	("WdfDeviceInitSetDeviceClass",None),
 	("WdfDeviceInitSetCharacteristics",None),
@@ -861,6 +861,12 @@ def add_structures():
 		print("Failed: Error when adding local type 'VOID'!")
 	if idc.set_local_type(-1,"typedef void *WDFCOLLECTION;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
+	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFIOTARGET'!")
+	if idc.set_local_type(-1,"typedef unsigned char BYTE;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'BYTE'!")
+	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'BOOLEAN'!")
 	add_WDFFUNCTIONS_structure()
 
 
@@ -989,7 +995,7 @@ class find_all_call_visitor(idaapi.ctree_visitor_t):
 
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_call:
-			if expr.x.op  == idaapi.cot_cast: # Case of a call to a WDF function
+			if expr.x.op  == idaapi.cot_cast: # Case of a call to a casted WDF function 
 				if expr.x.x.op == idaapi.cot_memref:
 					if expr.x.x.x.op == idaapi.cot_obj:
 						member_offset = expr.x.x.m
@@ -1018,6 +1024,20 @@ class find_all_call_visitor(idaapi.ctree_visitor_t):
 								elif parents_len > 2 and self.parents[parents_len-2].op == idaapi.cot_asg:
 									asg_citem = self.parents[parents_len-2]
 								self.list_found_call.append((call_expr, asg_citem))
+			elif expr.x.op == idaapi.cot_memref:
+				if expr.x.x.op == idaapi.cot_obj:
+					member_offset = expr.x.m
+					if str(expr.x.x.type) == 'WDFFUNCTIONS':
+						member_name = get_structure_member_name(WDFFUNCTIONS_STRUCT_NAME, member_offset)
+						if member_name == self.search_function_name:
+							call_expr = expr
+							asg_citem = None
+							parents_len = len(self.parents)
+							if parents_len > 1 and self.parents[parents_len-1].op == idaapi.cot_asg:
+								asg_citem = self.parents[parents_len-1]
+							elif parents_len > 2 and self.parents[parents_len-2].op == idaapi.cot_asg:
+								asg_citem = self.parents[parents_len-2]
+							self.list_found_call.append((call_expr, asg_citem))
 			elif expr.x.op  == idaapi.cot_obj: # Case of a call to an imported function or to another function of the driver
 				object_name = idc.get_name(expr.x.obj_ea)
 				if object_name == self.search_function_name:
@@ -1093,10 +1113,12 @@ def apply_structure_to_stack_parameter(called_name, function_address, call_expr,
 		print(f"Failed: {action}: The function '{called_name}' does not have a {idx_param+1}th parameter.")
 		return
 	param_expr = call_expr.a[idx_param]
+	if param_expr.op == idaapi.cot_cast:
+		param_expr = param_expr.x
 	if param_expr.op == idaapi.cot_ref: # &variable
 		param_expr = param_expr.x
 	if (param_expr.op != idaapi.cot_var) or (not param_expr.v.getv().is_stk_var()):
-		print(f"In {function_name}, the {idx_param+1}th parameter of the function '{called_name}' is not a stack frame variable.")
+		print(f"Failed: {action}: The {idx_param+1}th parameter of the function '{called_name}' is not a stack frame variable.")
 		return
 	struc_id = idc.get_struc_id(struct_name)
 	tid = ida_typeinf.get_named_type_tid(struct_name)
