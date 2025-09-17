@@ -111,13 +111,13 @@ kmdf1_11 = [
 	("WdfDeviceInitAssignSDDLString",None),
 	("WdfDeviceInitSetDeviceClass",None),
 	("WdfDeviceInitSetCharacteristics",None),
-	("WdfDeviceInitSetFileObjectConfig",None),
+	("WdfDeviceInitSetFileObjectConfig","typedef VOID __fastcall WDF_DEVICE_INIT_SET_FILE_OBJECT_CONFIG(int, WDFDEVICE_INIT *DeviceInit, _WDF_FILEOBJECT_CONFIG *FileObjectConfig, _WDF_OBJECT_ATTRIBUTES *FileObjectAttributes);"),
 	("WdfDeviceInitSetRequestAttributes",None),
 	("WdfDeviceInitAssignWdmIrpPreprocessCallback",None),
 	("WdfDeviceInitSetIoInCallerContextCallback",None),
-	("WdfDeviceCreate",None),
-	("WdfDeviceSetStaticStopRemove",None),
-	("WdfDeviceCreateDeviceInterface",None),
+	("WdfDeviceCreate","typedef NTSTATUS __fastcall WDF_DEVICE_CREATE(int, WDFDEVICE_INIT **DeviceInit, _WDF_OBJECT_ATTRIBUTES *DeviceAttributes, WDFDEVICE *Device);"),
+	("WdfDeviceSetStaticStopRemove","typedef VOID __fastcall WDF_DEVICE_SET_STATIC_STOP_REMOVE(int, WDFDEVICE Device, BOOLEAN Stoppable);"),
+	("WdfDeviceCreateDeviceInterface","typedef NTSTATUS __fastcall WDF_DEVICE_CREATE_DEVICE_INTERFACE(int, WDFDEVICE Device, const GUID *InterfaceClassGUID, _UNICODE_STRING *ReferenceString);"),
 	("WdfDeviceSetDeviceInterfaceState",None),
 	("WdfDeviceRetrieveDeviceInterfaceString",None),
 	("WdfDeviceCreateSymbolicLink",None),
@@ -156,7 +156,7 @@ kmdf1_11 = [
 	("WdfDpcCancel",None),
 	("WdfDpcGetParentObject",None),
 	("WdfDpcWdmGetDpc",None),
-	("WdfDriverCreate",None),
+	("WdfDriverCreate","typedef NTSTATUS __fastcall WDF_DRIVER_CREATE(int, _DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath, _WDF_OBJECT_ATTRIBUTES *DriverAttributes, _WDF_DRIVER_CONFIG *DriverConfig, WDFDRIVER *Driver);"),
 	("WdfDriverGetRegistryPath",None),
 	("WdfDriverWdmGetDriverObject",None),
 	("WdfDriverOpenParametersRegistryKey",None),
@@ -946,8 +946,17 @@ def is_renamed_function(function_address):
 
 def is_renamed_offset(offset_address):
 	offset_name = idc.get_name(offset_address)
-	original_name = f"off_{offset_address:X}"
-	return offset_name != original_name
+	# Create the hexadecimal string with uppercase letters
+	hex_str = f"{offset_address:X}" 
+
+	# Construct the two possible target strings
+	off_string = f"off_{hex_str}"
+	dword_string = f"dword_{hex_str}"
+
+	# Check if the input string matches either of the target strings
+	if offset_name == off_string or offset_name == dword_string:
+		return False
+	return True
 
 def rename_function(function_address, new_proto, force=False):
 	old_name = idc.get_name(function_address)
@@ -1879,14 +1888,15 @@ def rename_GUID_interface():
 	for xref in xrefs_list:
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
-		# Decompile the function to find the call to WdfIoQueueCreate
+		action = f"Rename GUID interface used by function 'WdfDeviceCreateDeviceInterface' in the function '{function_name}'"
+		# Decompile the function to find the call to WdfDeviceCreateDeviceInterface
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 		visitor = find_all_call_visitor('WdfDeviceCreateDeviceInterface')
 		visitor.apply_to(cfunc.body, None)
 		for call_expr,_ in visitor.list_found_call:
 			if call_expr.a.size() < 3:
-				# the function 'WdfDeviceCreateDeviceInterface' does not have a 3rd parameter
-				return
+				print(f"Failed: {action}: The function 'WdfDeviceCreateDeviceInterface' does not have a 3rd parameter!")
+				continue
 			param_expr = call_expr.a[2]
 			if param_expr.op == idaapi.cot_ref: # pointer
 				param_expr = param_expr.x
@@ -1894,6 +1904,11 @@ def rename_GUID_interface():
 				if not is_renamed_offset(param_expr.obj_ea):
 					rename_offset(param_expr.obj_ea, f'GUID InterfaceClassGUID_{count:02}')
 					count += 1
+					print(f"Done  : {action}")
+				else:
+					print(f"Failed: {action}: The 3rd parameter of the function 'WdfDeviceCreateDeviceInterface' is already renamed!")
+			else:
+				print(f"Failed: {action}: The 3rd parameter of the function 'WdfDeviceCreateDeviceInterface' is not an object!")
 
 def rename_callbacks_WdfDeviceAddQueryInterface():
 	wdf_function_address = find_wdf_function_address('WdfDeviceAddQueryInterface')
