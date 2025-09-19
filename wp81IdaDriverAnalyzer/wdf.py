@@ -36,6 +36,7 @@ WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME = "_WDF_PNPPOWER_EVENT_CALLBACKS"
 WDF_FILEOBJECT_CONFIG_STRUCT_NAME = "_WDF_FILEOBJECT_CONFIG"
 WDF_IO_QUEUE_CONFIG_STRUCT_NAME = "_WDF_IO_QUEUE_CONFIG"
 WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME = "_WDF_QUERY_INTERFACE_CONFIG"
+WDF_INTERRUPT_CONFIG_STRUCT_NAME = "_WDF_INTERRUPT_CONFIG"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -158,7 +159,7 @@ kmdf1_11 = [
 	("WdfDpcWdmGetDpc",None),
 	("WdfDriverCreate","typedef NTSTATUS __fastcall WDF_DRIVER_CREATE(int, _DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath, _WDF_OBJECT_ATTRIBUTES *DriverAttributes, _WDF_DRIVER_CONFIG *DriverConfig, WDFDRIVER *Driver);"),
 	("WdfDriverGetRegistryPath",None),
-	("WdfDriverWdmGetDriverObject",None),
+	("WdfDriverWdmGetDriverObject","typedef _DRIVER_OBJECT* __fastcall WDF_DRIVER_WDM_GET_DRIVER_OBJECT(int, WDFDRIVER Driver);"),
 	("WdfDriverOpenParametersRegistryKey",None),
 	("WdfWdmDriverGetWdfDriverHandle",None),
 	("WdfDriverRegisterTraceInfo",None),
@@ -181,8 +182,8 @@ kmdf1_11 = [
 	("WdfFileObjectGetFlags",None),
 	("WdfFileObjectGetDevice",None),
 	("WdfFileObjectWdmGetFileObject",None),
-	("WdfInterruptCreate",None),
-	("WdfInterruptQueueDpcForIsr",None),
+	("WdfInterruptCreate","typedef NTSTATUS __fastcall WDF_INTERRUPT_CREATE(int, WDFDEVICE Device, _WDF_INTERRUPT_CONFIG *Configuration, _WDF_OBJECT_ATTRIBUTES* Attributes, WDFINTERRUPT *Interrupt);"),
+	("WdfInterruptQueueDpcForIsr","typedef BOOLEAN __fastcall WDF_INTERRUPT_QUEUE_DPC_FOR_ISR(int, WDFINTERRUPT Interrupt);"),
 	("WdfInterruptSynchronize",None),
 	("WdfInterruptAcquireLock",None),
 	("WdfInterruptReleaseLock",None),
@@ -847,6 +848,25 @@ def add_structures():
 			("align", 0x15, idc.FF_BYTE, -1, 3),
 		]
 	)
+	create_structure(
+		"_WDF_INTERRUPT_CONFIG",
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("SpinLock", 0x04, idc.FF_DWORD, -1, 4),
+			("ShareVector", 0x08, idc.FF_DWORD, -1, 4),
+			("FloatingSave", 0x0C, idc.FF_BYTE, -1, 1),
+			("AutomaticSerialization", 0x0D, idc.FF_BYTE, -1, 1),
+			("EvtInterruptIsr", 0x10, idc.FF_DWORD, -1, 4),
+			("EvtInterruptDpc", 0x14, idc.FF_DWORD, -1, 4),
+			("EvtInterruptEnable", 0x18, idc.FF_DWORD, -1, 4),
+			("EvtInterruptDisable", 0x1C, idc.FF_DWORD, -1, 4),
+			("EvtInterruptWorkItem", 0x20, idc.FF_DWORD, -1, 4),
+			("InterruptRaw", 0x24, idc.FF_DWORD, -1, 4),
+			("InterruptTranslated", 0x28, idc.FF_DWORD, -1, 4),
+			("WaitLock", 0x2C, idc.FF_DWORD, -1, 4),
+			("PassiveHandling", 0x30, idc.FF_BYTE, -1, 4),
+		]
+	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'wchar_t'!")
 	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
@@ -863,6 +883,8 @@ def add_structures():
 		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
 	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'WDFIOTARGET'!")
+	if idc.set_local_type(-1,"typedef void *WDFINTERRUPT;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFINTERRUPT'!")
 	if idc.set_local_type(-1,"typedef unsigned char BYTE;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'BYTE'!")
 	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
@@ -925,6 +947,15 @@ def add_enums():
 		"WdfDeviceIoDirect": 3,
 		"WdfDeviceIoBufferedOrDirect": 4,
 		"WdfDeviceIoMaximum": 5
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
+	
+	enum_id = idc.add_enum(-1, '_WDF_TRI_STATE', 0x00000010)
+	members_to_add = {
+		"WdfFalse": 0,
+		"WdfTrue": 1,
+		"WdfUseDefault": 2
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)
