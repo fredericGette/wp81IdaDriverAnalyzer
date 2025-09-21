@@ -37,6 +37,7 @@ WDF_FILEOBJECT_CONFIG_STRUCT_NAME = "_WDF_FILEOBJECT_CONFIG"
 WDF_IO_QUEUE_CONFIG_STRUCT_NAME = "_WDF_IO_QUEUE_CONFIG"
 WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME = "_WDF_QUERY_INTERFACE_CONFIG"
 WDF_INTERRUPT_CONFIG_STRUCT_NAME = "_WDF_INTERRUPT_CONFIG"
+WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME = "_WDF_IO_TARGET_OPEN_PARAMS"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -193,25 +194,25 @@ kmdf1_11 = [
 	("WdfInterruptGetInfo",None),
 	("WdfInterruptSetPolicy",None),
 	("WdfInterruptGetDevice",None),
-	("WdfIoQueueCreate",None),
+	("WdfIoQueueCreate","typedef NTSTATUS __fastcall WDF_IO_QUEUE_CREATE(int, WDFDEVICE Device, _WDF_IO_QUEUE_CONFIG *Config, _WDF_OBJECT_ATTRIBUTES *QueueAttributes, WDFQUEUE *Queue);"),
 	("WdfIoQueueGetState",None),
 	("WdfIoQueueStart",None),
 	("WdfIoQueueStop",None),
 	("WdfIoQueueStopSynchronously",None),
-	("WdfIoQueueGetDevice",None),
-	("WdfIoQueueRetrieveNextRequest",None),
+	("WdfIoQueueGetDevice","typedef WDFDEVICE __fastcall WDF_IO_QUEUE_GET_DEVICE(int, WDFQUEUE Queue);"),
+	("WdfIoQueueRetrieveNextRequest","typedef NTSTATUS __fastcall WDF_IO_QUEUE_RETRIEVE_NEXT_REQUEST(int, WDFQUEUE Queue, WDFREQUEST *OutRequest);"),
 	("WdfIoQueueRetrieveRequestByFileObject",None),
 	("WdfIoQueueFindRequest",None),
 	("WdfIoQueueRetrieveFoundRequest",None),
 	("WdfIoQueueDrainSynchronously",None),
 	("WdfIoQueueDrain",None),
-	("WdfIoQueuePurgeSynchronously",None),
+	("WdfIoQueuePurgeSynchronously","typedef VOID __fastcall WDF_IO_QUEUE_PURGE_SYNCHRONOUSLY(int, WDFQUEUE Queue);"),
 	("WdfIoQueuePurge",None),
 	("WdfIoQueueReadyNotify",None),
-	("WdfIoTargetCreate",None),
-	("WdfIoTargetOpen",None),
+	("WdfIoTargetCreate","typedef NTSTATUS __fastcall WDF_IO_TARGET_CREATE(int, WDFDEVICE Device, _WDF_OBJECT_ATTRIBUTES *IoTargetAttributes, WDFIOTARGET *IoTarget);"),
+	("WdfIoTargetOpen","typedef NTSTATUS __fastcall WDF_IO_TARGET_OPEN(int, WDFIOTARGET IoTarget, _WDF_IO_TARGET_OPEN_PARAMS OpenParams);"),
 	("WdfIoTargetCloseForQueryRemove",None),
-	("WdfIoTargetClose",None),
+	("WdfIoTargetClose","typedef VOID __fastcall WDF_IO_TARGET_CLOSE(int, WDFIOTARGET IoTarget);"),
 	("WdfIoTargetStart",None),
 	("WdfIoTargetStop",None),
 	("WdfIoTargetGetState",None),
@@ -849,7 +850,7 @@ def add_structures():
 		]
 	)
 	create_structure(
-		"_WDF_INTERRUPT_CONFIG",
+		WDF_INTERRUPT_CONFIG_STRUCT_NAME,
 		[
 			("Size", 0x00, idc.FF_DWORD, -1, 4),
 			("SpinLock", 0x04, idc.FF_DWORD, -1, 4),
@@ -865,6 +866,28 @@ def add_structures():
 			("InterruptTranslated", 0x28, idc.FF_DWORD, -1, 4),
 			("WaitLock", 0x2C, idc.FF_DWORD, -1, 4),
 			("PassiveHandling", 0x30, idc.FF_BYTE, -1, 4),
+		]
+	)
+	create_structure(
+		WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_DWORD, -1, 4),
+			("Type", 0x04, idc.FF_DWORD, -1, 4),
+			("EvtIoTargetQueryRemove", 0x08, idc.FF_DWORD, -1, 4),
+			("EvtIoTargetRemoveCanceled", 0x0C, idc.FF_DWORD, -1, 4),
+			("EvtIoTargetRemoveComplete", 0x10, idc.FF_DWORD, -1, 4),
+			("TargetDeviceObject", 0x14, idc.FF_DWORD, -1, 4),
+			("TargetFileObject", 0x18, idc.FF_DWORD, -1, 4),
+			("TargetDeviceName", 0x1C, idc.FF_STRUCT, unicode_string_id, idc.get_struc_size(unicode_string_id)),
+			("DesiredAccess", 0x24, idc.FF_DWORD, -1, 4),
+			("ShareAccess", 0x28, idc.FF_DWORD, -1, 4),
+			("FileAttributes", 0x2C, idc.FF_DWORD, -1, 4),
+			("CreateDisposition", 0x30, idc.FF_DWORD, -1, 4),
+			("CreateOptions", 0x34, idc.FF_DWORD, -1, 4),
+			("EaBuffer", 0x38, idc.FF_DWORD, -1, 4),
+			("EaBufferLength", 0x3C, idc.FF_DWORD, -1, 4),
+			("AllocationSize", 0x40, idc.FF_DWORD, -1, 4),
+			("FileInformation", 0x44, idc.FF_DWORD, -1, 4),
 		]
 	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
@@ -956,6 +979,16 @@ def add_enums():
 		"WdfFalse": 0,
 		"WdfTrue": 1,
 		"WdfUseDefault": 2
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
+	
+	enum_id = idc.add_enum(-1, '_WDF_IO_TARGET_OPEN_TYPE', 0x00000010)
+	members_to_add = {
+		"WdfIoTargetOpenUndefined": 0,
+		"WdfIoTargetOpenUseExistingDevice": 1,
+		"WdfIoTargetOpenByName": 2,
+		"WdfIoTargetOpenReopen": 3
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)
