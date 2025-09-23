@@ -38,6 +38,8 @@ WDF_IO_QUEUE_CONFIG_STRUCT_NAME = "_WDF_IO_QUEUE_CONFIG"
 WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME = "_WDF_QUERY_INTERFACE_CONFIG"
 WDF_INTERRUPT_CONFIG_STRUCT_NAME = "_WDF_INTERRUPT_CONFIG"
 WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME = "_WDF_IO_TARGET_OPEN_PARAMS"
+WDF_MEMORY_DESCRIPTOR_STRUCT_NAME = "_WDF_MEMORY_DESCRIPTOR"
+WDF_REQUEST_SEND_OPTIONS_STRUCT_NAME = "_WDF_REQUEST_SEND_OPTIONS"
 
 
 # We only accept KMDF 1.11 (no need currently to have another version)
@@ -84,7 +86,7 @@ kmdf1_11 = [
 	("WdfDeviceGetDriver","typedef WDFDRIVER __fastcall WDF_DEVICE_GET_DRIVER(int, WDFDEVICE Device);"),
 	("WdfDeviceRetrieveDeviceName",None),
 	("WdfDeviceAssignMofResourceName",None),
-	("WdfDeviceGetIoTarget","typedef WDFIOTARGET __fastcall WDF_DEVICE_GET_IO_TARGET(int, WDFDEVICE Device);"),
+	("WdfDeviceGetIoTarget","typedef WDFIOTARGET __fastcall WDF_DEVICE_GET_IOTARGET(int, WDFDEVICE Device);"),
 	("WdfDeviceGetDevicePnpState",None),
 	("WdfDeviceGetDevicePowerState",None),
 	("WdfDeviceGetDevicePowerPolicyState",None),
@@ -194,32 +196,32 @@ kmdf1_11 = [
 	("WdfInterruptGetInfo",None),
 	("WdfInterruptSetPolicy",None),
 	("WdfInterruptGetDevice",None),
-	("WdfIoQueueCreate","typedef NTSTATUS __fastcall WDF_IO_QUEUE_CREATE(int, WDFDEVICE Device, _WDF_IO_QUEUE_CONFIG *Config, _WDF_OBJECT_ATTRIBUTES *QueueAttributes, WDFQUEUE *Queue);"),
+	("WdfIoQueueCreate","typedef NTSTATUS __fastcall WDF_IOQUEUE_CREATE(int, WDFDEVICE Device, _WDF_IO_QUEUE_CONFIG *Config, _WDF_OBJECT_ATTRIBUTES *QueueAttributes, WDFQUEUE *Queue);"),
 	("WdfIoQueueGetState",None),
 	("WdfIoQueueStart",None),
 	("WdfIoQueueStop",None),
 	("WdfIoQueueStopSynchronously",None),
-	("WdfIoQueueGetDevice","typedef WDFDEVICE __fastcall WDF_IO_QUEUE_GET_DEVICE(int, WDFQUEUE Queue);"),
-	("WdfIoQueueRetrieveNextRequest","typedef NTSTATUS __fastcall WDF_IO_QUEUE_RETRIEVE_NEXT_REQUEST(int, WDFQUEUE Queue, WDFREQUEST *OutRequest);"),
+	("WdfIoQueueGetDevice","typedef WDFDEVICE __fastcall WDF_IOQUEUE_GET_DEVICE(int, WDFQUEUE Queue);"),
+	("WdfIoQueueRetrieveNextRequest","typedef NTSTATUS __fastcall WDF_IOQUEUE_RETRIEVE_NEXT_REQUEST(int, WDFQUEUE Queue, WDFREQUEST *OutRequest);"),
 	("WdfIoQueueRetrieveRequestByFileObject",None),
 	("WdfIoQueueFindRequest",None),
 	("WdfIoQueueRetrieveFoundRequest",None),
 	("WdfIoQueueDrainSynchronously",None),
 	("WdfIoQueueDrain",None),
-	("WdfIoQueuePurgeSynchronously","typedef VOID __fastcall WDF_IO_QUEUE_PURGE_SYNCHRONOUSLY(int, WDFQUEUE Queue);"),
+	("WdfIoQueuePurgeSynchronously","typedef VOID __fastcall WDF_IOQUEUE_PURGE_SYNCHRONOUSLY(int, WDFQUEUE Queue);"),
 	("WdfIoQueuePurge",None),
 	("WdfIoQueueReadyNotify",None),
-	("WdfIoTargetCreate","typedef NTSTATUS __fastcall WDF_IO_TARGET_CREATE(int, WDFDEVICE Device, _WDF_OBJECT_ATTRIBUTES *IoTargetAttributes, WDFIOTARGET *IoTarget);"),
-	("WdfIoTargetOpen","typedef NTSTATUS __fastcall WDF_IO_TARGET_OPEN(int, WDFIOTARGET IoTarget, _WDF_IO_TARGET_OPEN_PARAMS OpenParams);"),
+	("WdfIoTargetCreate","typedef NTSTATUS __fastcall WDF_IOTARGET_CREATE(int, WDFDEVICE Device, _WDF_OBJECT_ATTRIBUTES *IoTargetAttributes, WDFIOTARGET *IoTarget);"),
+	("WdfIoTargetOpen","typedef NTSTATUS __fastcall WDF_IOTARGET_OPEN(int, WDFIOTARGET IoTarget, _WDF_IO_TARGET_OPEN_PARAMS OpenParams);"),
 	("WdfIoTargetCloseForQueryRemove",None),
-	("WdfIoTargetClose","typedef VOID __fastcall WDF_IO_TARGET_CLOSE(int, WDFIOTARGET IoTarget);"),
+	("WdfIoTargetClose","typedef VOID __fastcall WDF_IOTARGET_CLOSE(int, WDFIOTARGET IoTarget);"),
 	("WdfIoTargetStart",None),
 	("WdfIoTargetStop",None),
 	("WdfIoTargetGetState",None),
 	("WdfIoTargetGetDevice",None),
 	("WdfIoTargetQueryTargetProperty",None),
 	("WdfIoTargetAllocAndQueryTargetProperty",None),
-	("WdfIoTargetQueryForInterface","typedef NTSTATUS __fastcall WDF_IO_TARGET_QUERY_FOR_INTERFACE(int, WDFIOTARGET IoTarget, _GUID *InterfaceType, INTERFACE *Interface, USHORT Size, USHORT Version, VOID *InterfaceSpecificData);"),
+	("WdfIoTargetQueryForInterface","typedef NTSTATUS __fastcall WDF_IOTARGET_QUERY_FOR_INTERFACE(int, WDFIOTARGET IoTarget, _GUID *InterfaceType, INTERFACE *Interface, USHORT Size, USHORT Version, VOID *InterfaceSpecificData);"),
 	("WdfIoTargetWdmGetTargetDeviceObject",None),
 	("WdfIoTargetWdmGetTargetPhysicalDevice",None),
 	("WdfIoTargetWdmGetTargetFileObject",None),
@@ -228,22 +230,22 @@ kmdf1_11 = [
 	("WdfIoTargetFormatRequestForRead",None),
 	("WdfIoTargetSendWriteSynchronously",None),
 	("WdfIoTargetFormatRequestForWrite",None),
-	("WdfIoTargetSendIoctlSynchronously",None),
+	("WdfIoTargetSendIoctlSynchronously","typedef NTSTATUS __fastcall WDF_IOTARGET_SEND_IOCTL_SYNCHRONOUSLY(int, WDFIOTARGET IoTarget, WDFREQUEST Request, ULONG IoctlCode, _WDF_MEMORY_DESCRIPTOR *InputBuffer, _WDF_MEMORY_DESCRIPTOR *OutputBuffer, _WDF_REQUEST_SEND_OPTIONS *RequestOptions, ULONG *BytesReturned);"),
 	("WdfIoTargetFormatRequestForIoctl",None),
-	("WdfIoTargetSendInternalIoctlSynchronously",None),
+	("WdfIoTargetSendInternalIoctlSynchronously","typedef NTSTATUS __fastcall WDF_IOTARGET_SEND_INTERNAL_IOCTL_SYNCHRONOUSLY(int, WDFIOTARGET IoTarget, WDFREQUEST Request, ULONG IoctlCode, _WDF_MEMORY_DESCRIPTOR *InputBuffer, _WDF_MEMORY_DESCRIPTOR *OutputBuffer, _WDF_REQUEST_SEND_OPTIONS *RequestOptions, ULONG *BytesReturned);"),
 	("WdfIoTargetFormatRequestForInternalIoctl",None),
 	("WdfIoTargetSendInternalIoctlOthersSynchronously",None),
 	("WdfIoTargetFormatRequestForInternalIoctlOthers",None),
 	("WdfMemoryCreate",None),
 	("WdfMemoryCreatePreallocated",None),
-	("WdfMemoryGetBuffer",None),
+	("WdfMemoryGetBuffer","typedef PVOID __fastcall WDF_MEMORY_GET_BUFFER(int, WDFMEMORY Memory, size_t *BufferSize);"),
 	("WdfMemoryAssignBuffer",None),
 	("WdfMemoryCopyToBuffer",None),
 	("WdfMemoryCopyFromBuffer",None),
-	("WdfLookasideListCreate",None),
-	("WdfMemoryCreateFromLookaside",None),
+	("WdfLookasideListCreate","typedef NTSTATUS __fastcall WDF_LOOKASIDE_LIST_CREATE(int, _WDF_OBJECT_ATTRIBUTES *LookasideAttributes, size_t BufferSize, POOL_TYPE PoolType, _WDF_OBJECT_ATTRIBUTES *MemoryAttributes, ULONG PoolTag, WDFLOOKASIDE *Lookaside);"),
+	("WdfMemoryCreateFromLookaside","typedef NTSTATUS __fastcall WDF_MEMORY_CREATE_FROM_LOOKASIDE(int, WDFLOOKASIDE Lookaside, WDFMEMORY *Memory);"),
 	("WdfDeviceMiniportCreate",None),
-	("WdfDriverMiniportUnload",None),
+	("WdfDriverMiniportUnload","typedef VOID __fastcall WDF_DRIVER_MINIPORT_UNLOAD(int, WDFDRIVER Driver);"),
 	("WdfObjectGetTypedContextWorker",None),
 	("WdfObjectAllocateContext",None),
 	("WdfObjectContextGetObject",None),
@@ -890,6 +892,22 @@ def add_structures():
 			("FileInformation", 0x44, idc.FF_DWORD, -1, 4),
 		]
 	)
+	create_structure(
+		WDF_MEMORY_DESCRIPTOR_STRUCT_NAME,
+		[
+			("Type", 0x00, idc.FF_DWORD, -1, 4),
+			("Pointer", 0x04, idc.FF_DWORD, -1, 4),
+			("LengthOrOffset", 0x08, idc.FF_DWORD, -1, 4),
+		]
+	)
+	create_structure(
+		WDF_REQUEST_SEND_OPTIONS_STRUCT_NAME,
+		[
+			("Type", 0x00, idc.FF_DWORD, -1, 4),
+			("Flags", 0x04, idc.FF_DWORD, -1, 4),
+			("Timeout", 0x08, idc.FF_QWORD, -1, 8),
+		]
+	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'wchar_t'!")
 	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
@@ -902,6 +920,8 @@ def add_structures():
 		print("Failed: Error when adding local type 'ULONG'!")
 	if idc.set_local_type(-1,"typedef void VOID;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'VOID'!")
+	if idc.set_local_type(-1,"typedef void *PVOID;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'PVOID'!")
 	if idc.set_local_type(-1,"typedef void *WDFCOLLECTION;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
 	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
@@ -916,6 +936,10 @@ def add_structures():
 		print("Failed: Error when adding local type 'USHORT'!")
 	if idc.set_local_type(-1,"typedef void *INTERFACE;", idc.PT_SIL) == 0: # TODO define real INTERFACE
 		print("Failed: Error when adding local type 'INTERFACE'!")
+	if idc.set_local_type(-1,"typedef void *WDFMEMORY;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFMEMORY'!")
+	if idc.set_local_type(-1,"typedef void *WDFLOOKASIDE;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
 	add_WDFFUNCTIONS_structure()
 
 
@@ -993,6 +1017,32 @@ def add_enums():
 		"WdfIoTargetOpenUseExistingDevice": 1,
 		"WdfIoTargetOpenByName": 2,
 		"WdfIoTargetOpenReopen": 3
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
+	
+	enum_id = idc.add_enum(-1, '_WDF_MEMORY_DESCRIPTOR_TYPE', 0x00000010)
+	members_to_add = {
+		"WdfMemoryDescriptorTypeInvalid": 0,
+		"WdfMemoryDescriptorTypeBuffer": 1,
+		"WdfMemoryDescriptorTypeMdl": 2,
+		"WdfMemoryDescriptorTypeHandle": 3
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
+
+	enum_id = idc.add_enum(-1, 'POOL_TYPE', 0x00000010)
+	members_to_add = {
+		"NonPagedPool": 0,
+		"NonPagedPoolExecute": 0,
+		"PagedPool": 1,
+		"NonPagedPoolMustSucceed": 2,
+		"DontUseThisType": 3,
+		"NonPagedPoolCacheAligned": 4,
+		"PagedPoolCacheAligned": 5,
+		"NonPagedPoolCacheAlignedMustS": 6,
+		"MaxPoolType": 7,
+		"NonPagedPoolNx" : 512
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)

@@ -192,7 +192,7 @@ def create_UI_hooks():
 def create_actions():
 	action_desc = ida_kernwin.action_desc_t(
 		action_SetGUID,	# Name. Acts as an ID. Must be unique.
-		"Set GUID",		# Label. That's what users see.
+		"wp81:Set GUID",		# Label. That's what users see.
 		SetGUID())
 	if not ida_kernwin.register_action(action_desc):
 		print(f"Failed to register action {action_SetGUID}")
