@@ -219,7 +219,7 @@ kmdf1_11 = [
 	("WdfIoTargetGetDevice",None),
 	("WdfIoTargetQueryTargetProperty",None),
 	("WdfIoTargetAllocAndQueryTargetProperty",None),
-	("WdfIoTargetQueryForInterface",None),
+	("WdfIoTargetQueryForInterface","typedef NTSTATUS __fastcall WDF_IO_TARGET_QUERY_FOR_INTERFACE(int, WDFIOTARGET IoTarget, _GUID *InterfaceType, INTERFACE *Interface, USHORT Size, USHORT Version, VOID *InterfaceSpecificData);"),
 	("WdfIoTargetWdmGetTargetDeviceObject",None),
 	("WdfIoTargetWdmGetTargetPhysicalDevice",None),
 	("WdfIoTargetWdmGetTargetFileObject",None),
@@ -912,6 +912,10 @@ def add_structures():
 		print("Failed: Error when adding local type 'BYTE'!")
 	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'BOOLEAN'!")
+	if idc.set_local_type(-1,"typedef unsigned short USHORT;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'USHORT'!")
+	if idc.set_local_type(-1,"typedef void *INTERFACE;", idc.PT_SIL) == 0: # TODO define real INTERFACE
+		print("Failed: Error when adding local type 'INTERFACE'!")
 	add_WDFFUNCTIONS_structure()
 
 
