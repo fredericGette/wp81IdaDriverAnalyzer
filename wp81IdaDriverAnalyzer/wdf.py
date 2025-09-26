@@ -246,13 +246,13 @@ kmdf1_11 = [
 	("WdfMemoryCreateFromLookaside","typedef NTSTATUS __fastcall WDF_MEMORY_CREATE_FROM_LOOKASIDE(int, WDFLOOKASIDE Lookaside, WDFMEMORY *Memory);"),
 	("WdfDeviceMiniportCreate",None),
 	("WdfDriverMiniportUnload","typedef VOID __fastcall WDF_DRIVER_MINIPORT_UNLOAD(int, WDFDRIVER Driver);"),
-	("WdfObjectGetTypedContextWorker",None),
-	("WdfObjectAllocateContext",None),
+	("WdfObjectGetTypedContextWorker","typedef PVOID __fastcall WDF_OBJECT_GET_TYPED_CONTEXT_WORKER(int, WDFOBJECT Handle, _WDF_OBJECT_CONTEXT_TYPE_INFO *TypeInfo);"),
+	("WdfObjectAllocateContext","typedef NTSTATUS __fastcall WDF_OBJECT_ALLOCATE_CONTEXT(int, WDFOBJECT Handle, _WDF_OBJECT_ATTRIBUTES *ContextAttributes, PVOID *Context);"),
 	("WdfObjectContextGetObject",None),
-	("WdfObjectReferenceActual",None),
-	("WdfObjectDereferenceActual",None),
-	("WdfObjectCreate",None),
-	("WdfObjectDelete",None),
+	("WdfObjectReferenceActual","typedef VOID __fastcall WDF_OBJECT_REFERENCE_ACTUAL(int, WDFOBJECT Handle, PVOID Tag, LONG Line, char* File);"),
+	("WdfObjectDereferenceActual","typedef VOID __fastcall WDF_OBJECT_DEREFERENCE_ACTUAL(int, WDFOBJECT Handle, PVOID Tag, LONG Line, char* File);"),
+	("WdfObjectCreate","typedef NTSTATUS __fastcall WDF_OBJECT_CREATE(int, _WDF_OBJECT_ATTRIBUTES *Attributes, WDFOBJECT *Object);"),
+	("WdfObjectDelete","typedef VOID __fastcall WDF_OBJECT_DELETE(int, WDFOBJECT Object);"),
 	("WdfObjectQuery",None),
 	("WdfPdoInitAllocate",None),
 	("WdfPdoInitSetEventCallbacks",None),
@@ -940,6 +940,8 @@ def add_structures():
 		print("Failed: Error when adding local type 'WDFMEMORY'!")
 	if idc.set_local_type(-1,"typedef void *WDFLOOKASIDE;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
+	if idc.set_local_type(-1,"typedef long LONG;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'LONG'!")
 	add_WDFFUNCTIONS_structure()
 
 
@@ -1119,7 +1121,7 @@ class find_all_call_visitor(idaapi.ctree_visitor_t):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_PARENTS) # maintain parent information
 		self.list_found_call = [] # tuples (call_expr, asg_citem)
 		self.search_function_name = search_function_name
-
+	
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_call:
 			if expr.x.op  == idaapi.cot_cast: # Case of a call to a casted WDF function 
@@ -1185,7 +1187,7 @@ class find_asg_type_visitor(idaapi.ctree_visitor_t):
 		self.found_asg = None
 		self.search_var_type = search_var_type
 		self.search_var_type_member = search_var_type_member
-
+	
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_asg:
 			if expr.x.op  == idaapi.cot_memref:
@@ -1211,7 +1213,7 @@ class find_all_asg_name_visitor(idaapi.ctree_visitor_t):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_FAST) # do not maintain parent information
 		self.list_found_asg = []
 		self.search_var_name = search_var_name
-
+	
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_asg:
 			if expr.x.op  == idaapi.cot_var:
@@ -1224,12 +1226,31 @@ class find_all_obj_asg_visitor(idaapi.ctree_visitor_t):
 	def __init__(self):
 		idaapi.ctree_visitor_t.__init__(self, idaapi.CV_FAST) # do not maintain parent information
 		self.list_found_asg = []
-
+	
 	def visit_expr(self, expr):
 		if expr.op == idaapi.cot_asg:
 			if expr.x.op  == idaapi.cot_obj:
 				self.list_found_asg.append(expr)
 		return 0  # Continue traversal
+
+# Modify local variables
+class my_modifier_t(ida_hexrays.user_lvar_modifier_t):
+	def __init__(self, function_name, new_types={}):
+		ida_hexrays.user_lvar_modifier_t.__init__(self)
+		self.new_types = new_types
+		self.function_name = function_name
+	
+	def modify_lvars(self, lvars):
+		"""Note: lvars.lvvec contains only variables modified from the defaults.
+		   To change other variables, you can, for example, first use rename_lvar()
+		   so they get added to this list, then use modify_user_lvar_info() or modify_lvars().
+		"""
+		for idx, one in enumerate(lvars.lvvec):
+			new_type = self.new_types.get(one.name)
+			if new_type:
+				one.type = new_type
+				print(f"Done  : Change the type of the variable '{new_type._print()}{one.name}' in function '{self.function_name}'.")
+		return True
 
 def apply_structure_to_stack_parameter(called_name, function_address, call_expr, idx_param, struct_name, new_var_name):
 	function_name = idc.get_func_name(function_address)
@@ -2162,6 +2183,7 @@ def create_object_contextes():
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 		visitor = find_all_call_visitor('WdfObjectGetTypedContextWorker')
 		visitor.apply_to(cfunc.body, None)
+		new_types={} # map variable name : new type
 		for call_expr, asg_citem in visitor.list_found_call:
 			if call_expr.a.size() < 3:
 				# the function 'WdfObjectGetTypedContextWorker' does not have a 3rd parameter
@@ -2181,21 +2203,17 @@ def create_object_contextes():
 				# Usually, it's a register instead of a stack frame variable.
 				asg_expr = asg_citem.cexpr
 				if asg_expr:
-					action=f"Change the type of the variable '{structure_name}* {asg_expr.x.v.getv().name}' in function '{function_name}'."
 					struct_tinfo = idaapi.tinfo_t()
 					struct_tinfo.get_named_type(None, structure_name)
 					ptr_struct_tinfo = idaapi.tinfo_t()
 					ptr_struct_tinfo.create_ptr(struct_tinfo) # create a type pointer to the structure
-					# print(f"ptr_struct_tinfo={ptr_struct_tinfo}")
-					# print(f"present={ptr_struct_tinfo.present()}")
 					# print(f"is_correct={ptr_struct_tinfo.is_correct()}")
 					# print(f"result accepts_type = {asg_expr.x.v.getv().accepts_type(ptr_struct_tinfo)}")
-					if asg_expr.x.v.getv().set_lvar_type(ptr_struct_tinfo, True): # may_fail=True
-						print(f"Done  : {action}")
-					else:
-						print(f"Failed: {action}")
-		# Invalidate the decompilation cache and close all related pseudocode windows.
-		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
+					# Rename the variable - with the same name - in order to have it in the list lvars of the function modify_lvars
+					ida_hexrays.rename_lvar(function.start_ea, asg_expr.x.v.getv().name, asg_expr.x.v.getv().name)
+					new_types[asg_expr.x.v.getv().name] = ptr_struct_tinfo
+		lvar_modifier = my_modifier_t(function_name, new_types)
+		ida_hexrays.modify_user_lvars(function.start_ea, lvar_modifier)
 
 def cast_WDF_functions():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')

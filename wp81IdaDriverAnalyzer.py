@@ -19,9 +19,6 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 	
 	# The name of the plugin that will appear in the Plugins menu
 	wanted_name = "Wp81 Driver Analyzer"
-	
-	# An optional hotkey to run the plugin
-	wanted_hotkey = "Ctrl-Shift-H"
 
 	def init(self):
 		"""
