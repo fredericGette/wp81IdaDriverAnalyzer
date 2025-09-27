@@ -40,7 +40,7 @@ WDF_INTERRUPT_CONFIG_STRUCT_NAME = "_WDF_INTERRUPT_CONFIG"
 WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME = "_WDF_IO_TARGET_OPEN_PARAMS"
 WDF_MEMORY_DESCRIPTOR_STRUCT_NAME = "_WDF_MEMORY_DESCRIPTOR"
 WDF_REQUEST_SEND_OPTIONS_STRUCT_NAME = "_WDF_REQUEST_SEND_OPTIONS"
-
+WDF_REQUEST_PARAMETERS_STRUCT_NAME = "_WDF_REQUEST_PARAMETERS"
 
 # We only accept KMDF 1.11 (no need currently to have another version)
 kmdf1_11 = [
@@ -272,7 +272,7 @@ kmdf1_11 = [
 	("WdfPdoAddEjectionRelationsPhysicalDevice",None),
 	("WdfPdoRemoveEjectionRelationsPhysicalDevice",None),
 	("WdfPdoClearEjectionRelationsDevices",None),
-	("WdfDeviceAddQueryInterface",None),
+	("WdfDeviceAddQueryInterface","typedef NTSTATUS __fastcall WDF_DEVICE_ADD_QUERY_INTERFACE(int, WDFDEVICE Device, _WDF_QUERY_INTERFACE_CONFIG *InterfaceConfig);"),
 	("WdfRegistryOpenKey",None),
 	("WdfRegistryCreateKey",None),
 	("WdfRegistryClose",None),
@@ -300,17 +300,17 @@ kmdf1_11 = [
 	("WdfRequestSend",None),
 	("WdfRequestGetStatus",None),
 	("WdfRequestMarkCancelable",None),
-	("WdfRequestUnmarkCancelable",None),
+	("WdfRequestUnmarkCancelable","typedef NTSTATUS __fastcall WDF_REQUEST_UNMARK_CANCELABLE(int, WDFREQUEST Request);"),
 	("WdfRequestIsCanceled",None),
 	("WdfRequestCancelSentRequest",None),
 	("WdfRequestIsFrom32BitProcess",None),
 	("WdfRequestSetCompletionRoutine",None),
 	("WdfRequestGetCompletionParams",None),
 	("WdfRequestAllocateTimer",None),
-	("WdfRequestComplete",None),
+	("WdfRequestComplete","typedef VOID __fastcall WDF_REQUEST_COMPLETE(int, WDFREQUEST Request, NTSTATUS Status);"),
 	("WdfRequestCompleteWithPriorityBoost",None),
-	("WdfRequestCompleteWithInformation",None),
-	("WdfRequestGetParameters",None),
+	("WdfRequestCompleteWithInformation","typedef VOID __fastcall WDF_REQUEST_COMPLETE_WITH_INFORMATION(int, WDFREQUEST Request, NTSTATUS Status, ULONG *Information);"),
+	("WdfRequestGetParameters","typedef VOID __fastcall WDF_REQUEST_GET_PARAMETERS(int, WDFREQUEST Request, _WDF_REQUEST_PARAMETERS *Parameters);"),
 	("WdfRequestRetrieveInputMemory",None),
 	("WdfRequestRetrieveOutputMemory",None),
 	("WdfRequestRetrieveInputBuffer",None),
@@ -908,6 +908,18 @@ def add_structures():
 			("Timeout", 0x08, idc.FF_QWORD, -1, 8),
 		]
 	)
+	create_structure(
+		WDF_REQUEST_PARAMETERS_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_WORD, -1, 2),
+			("MinorFunction", 0x02, idc.FF_BYTE, -1, 1),
+			("Type", 0x04, idc.FF_DWORD, -1, 4),
+			("Arg1", 0x08, idc.FF_DWORD, -1, 4),
+			("Arg2", 0x0C, idc.FF_DWORD, -1, 4),
+			("IoControlCode", 0x10, idc.FF_DWORD, -1, 4),
+			("Arg4", 0x14, idc.FF_DWORD, -1, 4),
+		]
+	)
 	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'wchar_t'!")
 	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
@@ -1032,7 +1044,7 @@ def add_enums():
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)
-
+	
 	enum_id = idc.add_enum(-1, 'POOL_TYPE', 0x00000010)
 	members_to_add = {
 		"NonPagedPool": 0,
@@ -1045,6 +1057,43 @@ def add_enums():
 		"NonPagedPoolCacheAlignedMustS": 6,
 		"MaxPoolType": 7,
 		"NonPagedPoolNx" : 512
+	}
+	for member_name, member_value in members_to_add.items():
+		idc.add_enum_member(enum_id, member_name, member_value, -1)
+	
+	enum_id = idc.add_enum(-1, 'WDF_REQUEST_TYPE', 0x00000010)
+	members_to_add = {
+		"WdfRequestTypeCreate" : 0x0,
+		"WdfRequestTypeCreateNamedPipe" : 0x1,
+		"WdfRequestTypeClose" : 0x2,
+		"WdfRequestTypeRead" : 0x3,
+		"WdfRequestTypeWrite" : 0x4,
+		"WdfRequestTypeQueryInformation" : 0x5,
+		"WdfRequestTypeSetInformation" : 0x6,
+		"WdfRequestTypeQueryEA" : 0x7,
+		"WdfRequestTypeSetEA" : 0x8,
+		"WdfRequestTypeFlushBuffers" : 0x9,
+		"WdfRequestTypeQueryVolumeInformation" : 0xa,
+		"WdfRequestTypeSetVolumeInformation" : 0xb,
+		"WdfRequestTypeDirectoryControl" : 0xc,
+		"WdfRequestTypeFileSystemControl" : 0xd,
+		"WdfRequestTypeDeviceControl" : 0xe,
+		"WdfRequestTypeDeviceControlInternal" : 0xf,
+		"WdfRequestTypeShutdown" : 0x10,
+		"WdfRequestTypeLockControl" : 0x11,
+		"WdfRequestTypeCleanup" : 0x12,
+		"WdfRequestTypeCreateMailSlot" : 0x13,
+		"WdfRequestTypeQuerySecurity" : 0x14,
+		"WdfRequestTypeSetSecurity" : 0x15,
+		"WdfRequestTypePower" : 0x16,
+		"WdfRequestTypeSystemControl" : 0x17,
+		"WdfRequestTypeDeviceChange" : 0x18,
+		"WdfRequestTypeQueryQuota" : 0x19,
+		"WdfRequestTypeSetQuota" : 0x1A,
+		"WdfRequestTypePnp" : 0x1B,
+		"WdfRequestTypeOther" : 0x1C,
+		"WdfRequestTypeUsb" : 0x40,
+		"WdfRequestTypeNoFormat" : 0xFF
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)
