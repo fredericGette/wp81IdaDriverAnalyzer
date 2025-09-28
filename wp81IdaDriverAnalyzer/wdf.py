@@ -311,9 +311,9 @@ kmdf1_11 = [
 	("WdfRequestCompleteWithPriorityBoost",None),
 	("WdfRequestCompleteWithInformation","typedef VOID __fastcall WDF_REQUEST_COMPLETE_WITH_INFORMATION(int, WDFREQUEST Request, NTSTATUS Status, ULONG *Information);"),
 	("WdfRequestGetParameters","typedef VOID __fastcall WDF_REQUEST_GET_PARAMETERS(int, WDFREQUEST Request, _WDF_REQUEST_PARAMETERS *Parameters);"),
-	("WdfRequestRetrieveInputMemory",None),
-	("WdfRequestRetrieveOutputMemory",None),
-	("WdfRequestRetrieveInputBuffer",None),
+	("WdfRequestRetrieveInputMemory","typedef NTSTATUS __fastcall WDF_REQUEST_RETRIEVE_INPUT_MEMORY(int, WDFREQUEST Request, WDFMEMORY *Memory);"),
+	("WdfRequestRetrieveOutputMemory","typedef NTSTATUS __fastcall WDF_REQUEST_RETRIEVE_OUTPUT_MEMORY(int, WDFREQUEST Request, WDFMEMORY *Memory);"),
+	("WdfRequestRetrieveInputBuffer","typedef NTSTATUS __fastcall WDF_REQUEST_RETRIEVE_INPUT_BUFFER(int, WDFREQUEST Request, size_t MinimumRequiredLength, PVOID *Buffer, size_t *Length);"),
 	("WdfRequestRetrieveOutputBuffer",None),
 	("WdfRequestRetrieveInputWdmMdl",None),
 	("WdfRequestRetrieveOutputWdmMdl",None),
@@ -321,15 +321,15 @@ kmdf1_11 = [
 	("WdfRequestRetrieveUnsafeUserOutputBuffer",None),
 	("WdfRequestSetInformation",None),
 	("WdfRequestGetInformation",None),
-	("WdfRequestGetFileObject",None),
+	("WdfRequestGetFileObject","typedef WDFFILEOBJECT __fastcall WDF_REQUEST_GET_FILE_OBJECT(int, WDFREQUEST Request);"),
 	("WdfRequestProbeAndLockUserBufferForRead",None),
 	("WdfRequestProbeAndLockUserBufferForWrite",None),
 	("WdfRequestGetRequestorMode",None),
-	("WdfRequestForwardToIoQueue",None),
+	("WdfRequestForwardToIoQueue","typedef NTSTATUS __fastcall WDF_REQUEST_FORWARD_TO_IOQUEUE(int, WDFREQUEST Request, WDFQUEUE DestinationQueue);"),
 	("WdfRequestGetIoQueue",None),
-	("WdfRequestRequeue",None),
+	("WdfRequestRequeue","typedef NTSTATUS __fastcall WDF_REQUEST_REQUEUE(int, WDFREQUEST Request);"),
 	("WdfRequestStopAcknowledge",None),
-	("WdfRequestWdmGetIrp",None),
+	("WdfRequestWdmGetIrp","typedef PIRP __fastcall WDF_REQUEST_WDM_GET_IRP(int, WDFREQUEST Request);"),
 	("WdfIoResourceRequirementsListSetSlotNumber",None),
 	("WdfIoResourceRequirementsListSetInterfaceType",None),
 	("WdfIoResourceRequirementsListAppendIoResList",None),
@@ -356,12 +356,12 @@ kmdf1_11 = [
 	("WdfStringGetUnicodeString",None),
 	("WdfObjectAcquireLock",None),
 	("WdfObjectReleaseLock",None),
-	("WdfWaitLockCreate",None),
-	("WdfWaitLockAcquire",None),
-	("WdfWaitLockRelease",None),
-	("WdfSpinLockCreate",None),
-	("WdfSpinLockAcquire",None),
-	("WdfSpinLockRelease",None),
+	("WdfWaitLockCreate","typedef NTSTATUS __fastcall WDF_WAITLOCK_CREATE(int, _WDF_OBJECT_ATTRIBUTES *LockAttributes, WDFWAITLOCK *Lock);"),
+	("WdfWaitLockAcquire","typedef NTSTATUS __fastcall WDF_WAITLOCK_ACQUIRE(int, WDFWAITLOCK Lock, LONGLONG *Timeout);"),
+	("WdfWaitLockRelease","typedef VOID __fastcall WDF_WAITLOCK_RELEASE(int, WDFWAITLOCK Lock);"),
+	("WdfSpinLockCreate","typedef NTSTATUS __fastcall WDF_SPINLOCK_CREATE(int, _WDF_OBJECT_ATTRIBUTES *SpinLockAttributes, WDFSPINLOCK *SpinLock);"),
+	("WdfSpinLockAcquire","typedef VOID __fastcall WDF_SPINLOCK_ACQUIRE(int, WDFSPINLOCK SpinLock);"),
+	("WdfSpinLockRelease","typedef VOID __fastcall WDF_SPINLOCK_RELEASE(int, WDFSPINLOCK SpinLock);"),
 	("WdfTimerCreate",None),
 	("WdfTimerStart",None),
 	("WdfTimerStop",None),
@@ -954,6 +954,14 @@ def add_structures():
 		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
 	if idc.set_local_type(-1,"typedef long LONG;", idc.PT_SIL) == 0:
 		print("Failed: Error when adding local type 'LONG'!")
+	if idc.set_local_type(-1,"typedef void *PIRP;", idc.PT_SIL) == 0: # TODO define real IRP
+		print("Failed: Error when adding local type 'PIRP'!")
+	if idc.set_local_type(-1,"typedef void *WDFWAITLOCK;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFWAITLOCK'!")
+	if idc.set_local_type(-1,"typedef void *WDFSPINLOCK;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFSPINLOCK'!")
+	if idc.set_local_type(-1,"typedef unsigned __int64 LONGLONG;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'LONGLONG'!")
 	add_WDFFUNCTIONS_structure()
 
 
