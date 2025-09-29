@@ -41,6 +41,7 @@ WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME = "_WDF_IO_TARGET_OPEN_PARAMS"
 WDF_MEMORY_DESCRIPTOR_STRUCT_NAME = "_WDF_MEMORY_DESCRIPTOR"
 WDF_REQUEST_SEND_OPTIONS_STRUCT_NAME = "_WDF_REQUEST_SEND_OPTIONS"
 WDF_REQUEST_PARAMETERS_STRUCT_NAME = "_WDF_REQUEST_PARAMETERS"
+WDF_WORKITEM_CONFIG_STRUCT_NAME = "_WDF_WORKITEM_CONFIG"
 
 # We only accept KMDF 1.11 (no need currently to have another version)
 kmdf1_11 = [
@@ -423,9 +424,9 @@ kmdf1_11 = [
 	("WdfWmiInstanceGetDevice",None),
 	("WdfWmiInstanceGetProvider",None),
 	("WdfWmiInstanceFireEvent",None),
-	("WdfWorkItemCreate",None),
-	("WdfWorkItemEnqueue",None),
-	("WdfWorkItemGetParentObject",None),
+	("WdfWorkItemCreate","typedef NTSTATUS __fastcall WDF_WORKITEM_CREATE(int, _WDF_WORKITEM_CONFIG *Config, _WDF_OBJECT_ATTRIBUTES *Attributes, WDFWORKITEM *WorkItem);"),
+	("WdfWorkItemEnqueue","typedef VOID __fastcall WDF_WORKITEM_ENQUEUE(int, WDFWORKITEM WorkItem);"),
+	("WdfWorkItemGetParentObject","typedef WDFOBJECT __fastcall WDF_WORKITEM_GET_PARENT_OBJECT(int, WDFWORKITEM WorkItem);"),
 	("WdfWorkItemFlush",None),
 	("WdfCommonBufferCreateWithConfig",None),
 	("WdfDmaEnablerGetFragmentLength",None),
@@ -475,13 +476,7 @@ kmdf1_11 = [
 	("WdfInterruptReportActive",None),
 	("WdfInterruptReportInactive",None),
 	("WdfDeviceInitSetReleaseHardwareOrderOnFailure",None),
-	("WdfGetTriageInfo",None), # here ends version 1.9
-	("WdfDeviceInitSetIoTypeEx",None),
-	("WdfDeviceQueryPropertyEx",None),
-	("WdfDeviceAllocAndQueryPropertyEx",None),
-	("WdfDeviceAssignProperty",None),
-	("WdfFdoInitQueryPropertyEx",None),
-	("WdfFdoInitAllocAndQueryPropertyEx",None) # here ends version 1.11
+	("WdfGetTriageInfo",None)
 	]
 
 # Address of the array containing the WDF functions
@@ -626,6 +621,54 @@ def create_structure(struc_name, members):
 
 def add_structures():
 	ida_typeinf.set_compiler_id(ida_typeinf.COMP_MS) # Visual C++
+	
+	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'wchar_t'!")
+	if idc.set_local_type(-1,"typedef wchar_t *PWSTR;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'PWSTR'!")
+	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'size_t'!")
+	if idc.set_local_type(-1,"typedef int NTSTATUS;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'NTSTATUS'!")
+	if idc.set_local_type(-1,"typedef void *WDFOBJECT;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFOBJECT'!")
+	if idc.set_local_type(-1,"typedef unsigned int ULONG;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'ULONG'!")
+	if idc.set_local_type(-1,"typedef void VOID;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'VOID'!")
+	if idc.set_local_type(-1,"typedef void *PVOID;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'PVOID'!")
+	if idc.set_local_type(-1,"typedef void *WDFCOLLECTION;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
+	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFIOTARGET'!")
+	if idc.set_local_type(-1,"typedef void *WDFINTERRUPT;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFINTERRUPT'!")
+	if idc.set_local_type(-1,"typedef unsigned char BYTE;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'BYTE'!")
+	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'BOOLEAN'!")
+	if idc.set_local_type(-1,"typedef unsigned short USHORT;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'USHORT'!")
+	if idc.set_local_type(-1,"typedef void *INTERFACE;", idc.PT_SIL) == 0: # TODO define real INTERFACE
+		print("Failed: Error when adding local type 'INTERFACE'!")
+	if idc.set_local_type(-1,"typedef void *WDFMEMORY;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFMEMORY'!")
+	if idc.set_local_type(-1,"typedef void *WDFLOOKASIDE;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
+	if idc.set_local_type(-1,"typedef long LONG;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'LONG'!")
+	if idc.set_local_type(-1,"typedef void *PIRP;", idc.PT_SIL) == 0: # TODO define real IRP
+		print("Failed: Error when adding local type 'PIRP'!")
+	if idc.set_local_type(-1,"typedef void *WDFWAITLOCK;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFWAITLOCK'!")
+	if idc.set_local_type(-1,"typedef void *WDFSPINLOCK;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFSPINLOCK'!")
+	if idc.set_local_type(-1,"typedef void *WDFWORKITEM;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'WDFWORKITEM'!")
+	if idc.set_local_type(-1,"typedef unsigned __int64 LONGLONG;", idc.PT_SIL) == 0:
+		print("Failed: Error when adding local type 'LONGLONG'!")
+	
 	unicode_string_id = create_structure(
 		UNICODE_STRING_STRUCT_NAME, 
 		[
@@ -920,48 +963,15 @@ def add_structures():
 			("Arg4", 0x14, idc.FF_DWORD, -1, 4),
 		]
 	)
-	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'wchar_t'!")
-	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'size_t'!")
-	if idc.set_local_type(-1,"typedef int NTSTATUS;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'NTSTATUS'!")
-	if idc.set_local_type(-1,"typedef void *WDFOBJECT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFOBJECT'!")
-	if idc.set_local_type(-1,"typedef unsigned int ULONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'ULONG'!")
-	if idc.set_local_type(-1,"typedef void VOID;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'VOID'!")
-	if idc.set_local_type(-1,"typedef void *PVOID;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'PVOID'!")
-	if idc.set_local_type(-1,"typedef void *WDFCOLLECTION;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
-	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFIOTARGET'!")
-	if idc.set_local_type(-1,"typedef void *WDFINTERRUPT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFINTERRUPT'!")
-	if idc.set_local_type(-1,"typedef unsigned char BYTE;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'BYTE'!")
-	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'BOOLEAN'!")
-	if idc.set_local_type(-1,"typedef unsigned short USHORT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'USHORT'!")
-	if idc.set_local_type(-1,"typedef void *INTERFACE;", idc.PT_SIL) == 0: # TODO define real INTERFACE
-		print("Failed: Error when adding local type 'INTERFACE'!")
-	if idc.set_local_type(-1,"typedef void *WDFMEMORY;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFMEMORY'!")
-	if idc.set_local_type(-1,"typedef void *WDFLOOKASIDE;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
-	if idc.set_local_type(-1,"typedef long LONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'LONG'!")
-	if idc.set_local_type(-1,"typedef void *PIRP;", idc.PT_SIL) == 0: # TODO define real IRP
-		print("Failed: Error when adding local type 'PIRP'!")
-	if idc.set_local_type(-1,"typedef void *WDFWAITLOCK;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFWAITLOCK'!")
-	if idc.set_local_type(-1,"typedef void *WDFSPINLOCK;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFSPINLOCK'!")
-	if idc.set_local_type(-1,"typedef unsigned __int64 LONGLONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'LONGLONG'!")
+	create_structure(
+		WDF_WORKITEM_CONFIG_STRUCT_NAME,
+		[
+			("Size", 0x00, idc.FF_WORD, -1, 2),
+			("EvtWorkItemFunc", 0x04, idc.FF_DWORD, -1, 4),
+			("AutomaticSerialization", 0x08, idc.FF_DWORD, -1, 4),
+		]
+	)
+	
 	add_WDFFUNCTIONS_structure()
 
 
@@ -2335,8 +2345,14 @@ def rename_functions_and_offsets():
 	
 	# Get the address of the function by its name
 	FxDriverEntryWorker_address = idc.get_name_ea_simple('FxDriverEntryWorker')
-	DriverEntry_address = idc.get_operand_value(FxDriverEntryWorker_address+16, 0)
+	DriverEntry_address = idc.get_operand_value(FxDriverEntryWorker_address+0x10, 0)
 	rename_function(DriverEntry_address, 'int __fastcall DriverEntry(_DRIVER_OBJECT *DriverObject, _UNICODE_STRING *RegistryPath)', force=True)
+	WdfDriverStubRegistryPath_address = ida_bytes.get_32bit(idc.get_operand_value(FxDriverEntryWorker_address+0x18, 1))
+	rename_offset(WdfDriverStubRegistryPath_address, "_UNICODE_STRING WdfDriverStubRegistryPath")
+	rename_offset(WdfDriverStubRegistryPath_address+0x08, "WdfDriverStubDisplacedDriverUnload")
+	rename_offset(WdfDriverStubRegistryPath_address+0x0C, "WdfDriverGlobals")
+	rename_offset(WdfDriverStubRegistryPath_address+0x10, "_DRIVER_OBJECT *WdfDriverStubDriverObject")
+	rename_offset(WdfDriverStubRegistryPath_address+0x14, "WdfDriverStubOriginalWdfDriverMiniportUnload")
 	WdfDriverStubRegistryPathBuffer_address = ida_bytes.get_32bit(idc.get_operand_value(FxDriverEntryWorker_address+0x26, 1))
 	rename_offset(WdfDriverStubRegistryPathBuffer_address, 'wchar_t WdfDriverStubRegistryPathBuffer[260]')
 	WdfVersionBind0_address = idc.get_operand_value(FxDriverEntryWorker_address+0x42, 0)
