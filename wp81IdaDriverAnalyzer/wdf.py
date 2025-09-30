@@ -622,95 +622,23 @@ def create_structure(struc_name, members):
 def add_structures():
 	ida_typeinf.set_compiler_id(ida_typeinf.COMP_MS) # Visual C++
 	
-	if idc.set_local_type(-1,"typedef unsigned __int16 wchar_t;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'wchar_t'!")
-	if idc.set_local_type(-1,"typedef wchar_t *PWSTR;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'PWSTR'!")
-	if idc.set_local_type(-1,"typedef unsigned int size_t;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'size_t'!")
-	if idc.set_local_type(-1,"typedef int NTSTATUS;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'NTSTATUS'!")
-	if idc.set_local_type(-1,"typedef void *WDFOBJECT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFOBJECT'!")
-	if idc.set_local_type(-1,"typedef unsigned int ULONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'ULONG'!")
-	if idc.set_local_type(-1,"typedef void VOID;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'VOID'!")
-	if idc.set_local_type(-1,"typedef void *PVOID;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'PVOID'!")
-	if idc.set_local_type(-1,"typedef void *WDFCOLLECTION;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFCOLLECTION'!")
-	if idc.set_local_type(-1,"typedef void *WDFIOTARGET;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFIOTARGET'!")
-	if idc.set_local_type(-1,"typedef void *WDFINTERRUPT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFINTERRUPT'!")
-	if idc.set_local_type(-1,"typedef unsigned char BYTE;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'BYTE'!")
-	if idc.set_local_type(-1,"typedef BYTE BOOLEAN;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'BOOLEAN'!")
-	if idc.set_local_type(-1,"typedef unsigned short USHORT;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'USHORT'!")
-	if idc.set_local_type(-1,"typedef void *INTERFACE;", idc.PT_SIL) == 0: # TODO define real INTERFACE
-		print("Failed: Error when adding local type 'INTERFACE'!")
-	if idc.set_local_type(-1,"typedef void *WDFMEMORY;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFMEMORY'!")
-	if idc.set_local_type(-1,"typedef void *WDFLOOKASIDE;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFLOOKASIDE'!")
-	if idc.set_local_type(-1,"typedef long LONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'LONG'!")
-	if idc.set_local_type(-1,"typedef void *PIRP;", idc.PT_SIL) == 0: # TODO define real IRP
-		print("Failed: Error when adding local type 'PIRP'!")
-	if idc.set_local_type(-1,"typedef void *WDFWAITLOCK;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFWAITLOCK'!")
-	if idc.set_local_type(-1,"typedef void *WDFSPINLOCK;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFSPINLOCK'!")
-	if idc.set_local_type(-1,"typedef void *WDFWORKITEM;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'WDFWORKITEM'!")
-	if idc.set_local_type(-1,"typedef unsigned __int64 LONGLONG;", idc.PT_SIL) == 0:
-		print("Failed: Error when adding local type 'LONGLONG'!")
+	script_path = os.path.abspath(__file__)
+	# Get the directory containing the script
+	current_folder_path = os.path.dirname(script_path)
+	file_path = os.path.join(current_folder_path, "WDF_structs.h")
+	with open(file_path, 'r') as file:
+		file_content = file.read()
+	til = ida_typeinf.get_idati()
+	# Parse the declaration, ignoring redeclaration warnings and applying default packing/
+	if ida_typeinf.parse_decls(til, file_content, True, ida_typeinf.HTI_DCL | ida_typeinf.HTI_PAKDEF) != 0:
+		raise Exception("Failed to parse the WDF_structs.h declarations.\n")
 	
 	unicode_string_id = create_structure(
-		UNICODE_STRING_STRUCT_NAME, 
+		UNICODE_STRING_STRUCT_NAME+"2", 
 		[
 			("Length", 0x00, idc.FF_WORD, -1, 2),
 			("MaximumLength", 0x02, idc.FF_WORD, -1, 2),
 			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		DRIVER_OBJECT_STRUCT_NAME,
-		[
-			("Type", 0x00, idc.FF_WORD, -1, 2),
-			("Size", 0x02, idc.FF_WORD, -1, 2),
-			("DeviceObject", 0x04, idc.FF_DWORD, -1, 4),
-			("Flags", 0x08, idc.FF_DWORD, -1, 4),
-			("DriverStart", 0x0C, idc.FF_DWORD, -1, 4),
-			("DriverSize", 0x10, idc.FF_DWORD, -1, 4),
-			("DriverSection", 0x14, idc.FF_DWORD, -1, 4),
-			("DriverExtension", 0x18, idc.FF_DWORD, -1, 4),
-			("DriverName", 0x1C, idc.FF_STRUCT, unicode_string_id, idc.get_struc_size(unicode_string_id)),
-			("HardwareDatabase", 0x24, idc.FF_DWORD, -1, 4),
-			("FastIoDispatch", 0x28, idc.FF_DWORD, -1, 4),
-			("DriverInit", 0x2C, idc.FF_DWORD, -1, 4),
-			("DriverStartIo", 0x30, idc.FF_DWORD, -1, 4),
-			("DriverUnload", 0x34, idc.FF_DWORD, -1, 4),
-			("MajorFunction", 0x38, idc.FF_DWORD | idc.FF_DATA, -1, 28*4), # The flag FF_DWORD|FF_DATA is used for a DCD type
-		]
-	)
-	create_structure(
-		WDF_DRIVER_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("EvtDriverDeviceAdd", 0x04, idc.FF_DWORD, -1, 4),
-			("EvtDriverUnload", 0x08, idc.FF_DWORD, -1, 4),
-			("DriverInitFlags", 0x0C, idc.FF_DWORD, -1, 4),
-			("DriverPoolTag", 0x10, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDFDRIVER_STRUCT_NAME,
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
 		]
 	)
 	create_structure(
@@ -2428,7 +2356,7 @@ def rename_functions_and_offsets():
 	if asg_expr:
 		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
 			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'NTSTATUS __fastcall EvtDriverDeviceAdd(WDFDRIVER *Driver, WDFDEVICE_INIT *DeviceInit)')
+				rename_function(asg_expr.y.x.obj_ea, 'NTSTATUS __fastcall EvtDriverDeviceAdd(WDFDRIVER Driver, WDFDEVICE_INIT *DeviceInit)')
 	
 	visitor = find_asg_type_visitor(WDF_DRIVER_CONFIG_STRUCT_NAME, 'EvtDriverUnload')
 	visitor.apply_to(cfunc.body, None)
@@ -2436,7 +2364,7 @@ def rename_functions_and_offsets():
 	if asg_expr:
 		if asg_expr.y.op == idaapi.cot_cast: # there is a cast from int() to int
 			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'void __fastcall EvtDriverUnload(WDFDRIVER *Driver)')
+				rename_function(asg_expr.y.x.obj_ea, 'void __fastcall EvtDriverUnload(WDFDRIVER Driver)')
 	
 	rename_function_McGenEventRegister()
 	rename_function_McGenEventUnregister()
