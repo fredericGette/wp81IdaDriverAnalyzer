@@ -622,6 +622,7 @@ def create_structure(struc_name, members):
 def add_structures():
 	ida_typeinf.set_compiler_id(ida_typeinf.COMP_MS) # Visual C++
 	
+	action = f"Load 'WDF_structs.h' declarations."
 	script_path = os.path.abspath(__file__)
 	# Get the directory containing the script
 	current_folder_path = os.path.dirname(script_path)
@@ -631,7 +632,8 @@ def add_structures():
 	til = ida_typeinf.get_idati()
 	# Parse the declaration, ignoring redeclaration warnings and applying default packing/
 	if ida_typeinf.parse_decls(til, file_content, True, ida_typeinf.HTI_DCL | ida_typeinf.HTI_PAKDEF) != 0:
-		raise Exception("Failed to parse the WDF_structs.h declarations.\n")
+		raise Exception("Failed to parse the 'WDF_structs.h' declarations.\n")
+	print(f"Done  : {action}")
 	
 	unicode_string_id = create_structure(
 		UNICODE_STRING_STRUCT_NAME+"2", 
@@ -639,90 +641,6 @@ def add_structures():
 			("Length", 0x00, idc.FF_WORD, -1, 2),
 			("MaximumLength", 0x02, idc.FF_WORD, -1, 2),
 			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDFDEVICE_INIT_STRUCT_NAME,
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'WDFDEVICE',
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'WDFCMRESLIST',
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'WDFREQUEST',
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'WDFFILEOBJECT',
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'WDFQUEUE',
-		[
-			("unused", 0x00, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_OBJECT_ATTRIBUTES_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("EvtCleanupCallback", 0x04, idc.FF_DWORD, -1, 4),
-			("EvtDestroyCallback", 0x08, idc.FF_DWORD, -1, 4),
-			("ExecutionLevel", 0x0C, idc.FF_DWORD, -1, 4),
-			("SynchronizationScope", 0x10, idc.FF_DWORD, -1, 4),
-			("ParentObject", 0x14, idc.FF_DWORD, -1, 4),
-			("ContextSizeOverride", 0x18, idc.FF_DWORD, -1, 4),
-			("ContextTypeInfo", 0x1C, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_OBJECT_CONTEXT_TYPE_INFO_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("ContextName", 0x04, idc.FF_DWORD, -1, 4),
-			("ContextSize", 0x08, idc.FF_DWORD, -1, 4),
-			("UniqueType", 0x0C, idc.FF_DWORD, -1, 4),
-			("EvtDriverGetUniqueContextType", 0x10, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		EVENT_FILTER_DESCRIPTOR_STRUCT_NAME,
-		[
-			("Ptr", 0x00, idc.FF_QWORD, -1, 8),
-			("Size", 0x08, idc.FF_DWORD, -1, 4),
-			("Type", 0x0C, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME,
-		[
-			("Callback", 0x00, idc.FF_DWORD, -1, 4),
-			("ControlGuid", 0x04, idc.FF_DWORD, -1, 4),
-			("Next", 0x08, idc.FF_DWORD, -1, 4),
-			("field_C", 0x0C, idc.FF_BYTE | idc.FF_DATA, -1, 4), # Adding a placeholder member for the undefined bytes.
-			("Logger", 0x10, idc.FF_QWORD, -1, 8),
-			("RegistryPath", 0x18, idc.FF_DWORD, -1, 4),
-			("FlagsLen", 0x1C, idc.FF_BYTE, -1, 1),
-			("Level", 0x1D, idc.FF_BYTE, -1, 1),
-			("Reserved", 0x1E, idc.FF_WORD, -1, 2),
-			("Flags", 0x20, idc.FF_DWORD, -1, 4),
-			("ReservedFlags", 0x24, idc.FF_DWORD, -1, 4),
-			("RegHandle", 0x28, idc.FF_QWORD, -1, 8),
 		]
 	)
 	create_structure(
@@ -1541,7 +1459,7 @@ def rename_function_WppLoadTracingSupport():
 		(1, 'int (__fastcall *)(unsigned __int64 LoggerHandle, unsigned int MessageFlags, const _GUID *MessageGuid, unsigned __int16 MessageNumber, ...) pfnWppTraceMessage', 'second'),
 		(2, 'int (__fastcall *)(_TRACE_INFORMATION_CLASS, void *, unsigned int, unsigned int *, void *) pfnWppQueryTraceInformation', 'third'),
 		(3, '_WPP_TRACE_API_SUITE WPPTraceSuite', 'fourth'),
-		(4, 'int (__fastcall *)(const _GUID *, unsigned int, void (__fastcall *)(const _GUID *, unsigned __int8, void *, void *), void *, unsigned __int64 *) pfnEtwRegisterClassicProvider', 'fifth'),
+		(4, 'void (__fastcall *)(const _GUID *, unsigned int, void (__fastcall *)(const _GUID *, unsigned __int8, void *, void *), void *, unsigned __int64 *) pfnEtwRegisterClassicProvider', 'fifth'),
 		(5, 'int (__fastcall *)(unsigned __int64) pfnEtwUnregister', 'sixth'),
 	]
 	
@@ -1783,7 +1701,7 @@ def rename_function_WppTraceCallback():
 	if asg_expr:
 		if asg_expr.y.op == idaapi.cot_cast: # there is a cast to int
 			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall WppTraceCallback(int MinorFunction, void *DataPath, unsigned int BufferLength, void *Buffer, void *Context, unsigned int *Size)')
+				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall WppTraceCallback(unsigned __int8 MinorFunction, void *DataPath, unsigned int BufferLength, void *Buffer, void *Context, unsigned int *Size)')
 
 def rename_functions_EventWrite():
 	EtwWrite_address = get_imported_function_address('EtwWrite')
