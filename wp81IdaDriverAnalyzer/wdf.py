@@ -643,91 +643,26 @@ def add_structures():
 			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
 		]
 	)
-	create_structure(
-		DEVICE_OBJECT_STRUCT_NAME,
-		[
-			("dummy", 0x00, idc.FF_BYTE | idc.FF_DATA, -1, 0xB8), # Placeholder, no need to have the detail of this structure for the moment.
-		]
-	)
-	create_structure(
-		WDF_BIND_INFO_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("Component", 0x04, idc.FF_DWORD, -1, 4),
-			("Version.Major", 0x08, idc.FF_DWORD, -1, 4),
-			("Version.Minor", 0x0C, idc.FF_DWORD, -1, 4),
-			("Version.Build", 0x10, idc.FF_DWORD, -1, 4),
-			("FuncCount", 0x14, idc.FF_DWORD, -1, 4),
-			("FuncTable", 0x18, idc.FF_DWORD, -1, 4),
-			("Module", 0x1C, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		'_EVENT_DESCRIPTOR',
-		[
-			("Id", 0x00, idc.FF_WORD, -1, 2),
-			("Version", 0x02, idc.FF_BYTE, -1, 1),
-			("Channel", 0x03, idc.FF_BYTE, -1, 1),
-			("Level", 0x04, idc.FF_BYTE, -1, 1),
-			("Opcode", 0x05, idc.FF_BYTE, -1, 1),
-			("Task", 0x06, idc.FF_WORD, -1, 2),
-			("Keyword", 0x08, idc.FF_QWORD, -1, 8),
-		]
-	)
-	create_structure(
-		WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("EvtDeviceD0Entry", 0x04, idc.FF_DWORD, -1, 4),
-			("EvtDeviceD0EntryPostInterruptsEnabled", 0x08, idc.FF_DWORD, -1, 4),
-			("EvtDeviceD0Exit", 0x0C, idc.FF_DWORD, -1, 4),
-			("EvtDeviceD0ExitPreInterruptsDisabled", 0x10, idc.FF_DWORD, -1, 4),
-			("EvtDevicePrepareHardware", 0x14, idc.FF_DWORD, -1, 4),
-			("EvtDeviceReleaseHardware", 0x18, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSelfManagedIoCleanup", 0x1C, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSelfManagedIoFlush", 0x20, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSelfManagedIoInit", 0x24, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSelfManagedIoSuspend", 0x28, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSelfManagedIoRestart", 0x2C, idc.FF_DWORD, -1, 4),
-			("EvtDeviceSurpriseRemoval", 0x30, idc.FF_DWORD, -1, 4),
-			("EvtDeviceQueryRemove", 0x34, idc.FF_DWORD, -1, 4),
-			("EvtDeviceQueryStop", 0x38, idc.FF_DWORD, -1, 4),
-			("EvtDeviceUsageNotification", 0x3C, idc.FF_DWORD, -1, 4),
-			("EvtDeviceRelationsQuery", 0x40,idc.FF_DWORD, -1, 4),
-			("EvtDeviceUsageNotificationEx", 0x44, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_FILEOBJECT_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("EvtDeviceFileCreate", 0x04, idc.FF_DWORD, -1, 4),
-			("EvtFileClose", 0x08, idc.FF_DWORD, -1, 4),
-			("EvtFileCleanup", 0x0C, idc.FF_DWORD, -1, 4),
-			("AutoForwardCleanupClose", 0x10, idc.FF_DWORD, -1, 4),
-			("FileObjectClass", 0x14, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_IO_QUEUE_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("DispatchType", 0x04, idc.FF_DWORD, -1, 4),
-			("PowerManaged", 0x08, idc.FF_DWORD, -1, 4),
-			("AllowZeroLengthRequests", 0x0C, idc.FF_BYTE, -1, 1),
-			("DefaultQueue", 0x0D, idc.FF_BYTE, -1, 1),
-			("EvtIoDefault", 0x10, idc.FF_DWORD, -1, 4),
-			("EvtIoRead", 0x14, idc.FF_DWORD, -1, 4),
-			("EvtIoWrite", 0x18, idc.FF_DWORD, -1, 4),
-			("EvtIoDeviceControl", 0x1C, idc.FF_DWORD, -1, 4),
-			("EvtIoInternalDeviceControl", 0x20, idc.FF_DWORD, -1, 4),
-			("EvtIoStop", 0x24, idc.FF_DWORD, -1, 4),
-			("EvtIoResume", 0x28, idc.FF_DWORD, -1, 4),
-			("EvtIoCanceledOnQueue", 0x2C, idc.FF_DWORD, -1, 4),
-			("Settings", 0x30, idc.FF_DWORD, -1, 4),
-			("Driver", 0x34, idc.FF_DWORD, -1, 4),
-		]
-	)
+	# create_structure(
+		# WDF_IO_QUEUE_CONFIG_STRUCT_NAME,
+		# [
+			# ("Size", 0x00, idc.FF_DWORD, -1, 4),
+			# ("DispatchType", 0x04, idc.FF_DWORD, -1, 4),
+			# ("PowerManaged", 0x08, idc.FF_DWORD, -1, 4),
+			# ("AllowZeroLengthRequests", 0x0C, idc.FF_BYTE, -1, 1),
+			# ("DefaultQueue", 0x0D, idc.FF_BYTE, -1, 1),
+			# ("EvtIoDefault", 0x10, idc.FF_DWORD, -1, 4),
+			# ("EvtIoRead", 0x14, idc.FF_DWORD, -1, 4),
+			# ("EvtIoWrite", 0x18, idc.FF_DWORD, -1, 4),
+			# ("EvtIoDeviceControl", 0x1C, idc.FF_DWORD, -1, 4),
+			# ("EvtIoInternalDeviceControl", 0x20, idc.FF_DWORD, -1, 4),
+			# ("EvtIoStop", 0x24, idc.FF_DWORD, -1, 4),
+			# ("EvtIoResume", 0x28, idc.FF_DWORD, -1, 4),
+			# ("EvtIoCanceledOnQueue", 0x2C, idc.FF_DWORD, -1, 4),
+			# ("Settings", 0x30, idc.FF_DWORD, -1, 4),
+			# ("Driver", 0x34, idc.FF_DWORD, -1, 4),
+		# ]
+	# )
 	create_structure(
 		WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME,
 		[
@@ -876,15 +811,6 @@ def add_enums():
 		"WdfDeviceIoDirect": 3,
 		"WdfDeviceIoBufferedOrDirect": 4,
 		"WdfDeviceIoMaximum": 5
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, '_WDF_TRI_STATE', 0x00000010)
-	members_to_add = {
-		"WdfFalse": 0,
-		"WdfTrue": 1,
-		"WdfUseDefault": 2
 	}
 	for member_name, member_value in members_to_add.items():
 		idc.add_enum_member(enum_id, member_name, member_value, -1)
@@ -1813,10 +1739,10 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		# Decompile again the function to find the assignments of PnpPowerEventCallbacks
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 		
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0Entry', "NTSTATUS __fastcall EvtWdfDeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE PreviousState)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0EntryPostInterruptsEnabled', "NTSTATUS __fastcall EvtWdfDeviceD0EntryPostInterruptsEnabled(WDFDEVICE Device, WDF_POWER_DEVICE_STATE PreviousState)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0Exit', "NTSTATUS __fastcall EvtWdfDeviceD0Exit(WDFDEVICE Device, WDF_POWER_DEVICE_STATE TargetState)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0ExitPreInterruptsDisabled', "NTSTATUS __fastcall EvtWdfDeviceD0ExitPreInterruptsDisabled(WDFDEVICE Device, WDF_POWER_DEVICE_STATE TargetState)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0Entry', "NTSTATUS __fastcall EvtWdfDeviceD0Entry(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE PreviousState)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0EntryPostInterruptsEnabled', "NTSTATUS __fastcall EvtWdfDeviceD0EntryPostInterruptsEnabled(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE PreviousState)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0Exit', "NTSTATUS __fastcall EvtWdfDeviceD0Exit(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE TargetState)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0ExitPreInterruptsDisabled', "NTSTATUS __fastcall EvtWdfDeviceD0ExitPreInterruptsDisabled(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE TargetState)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDevicePrepareHardware', "NTSTATUS __fastcall EvtWdfDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTranslated)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceReleaseHardware', "NTSTATUS __fastcall EvtWdfDeviceReleaseHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesTranslated)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceSelfManagedIoCleanup', "void __fastcall EvtWdfDeviceSelfManagedIoCleanup(WDFDEVICE Device)")
@@ -1827,9 +1753,9 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceSurpriseRemoval', "void __fastcall EvtWdfDeviceSurpriseRemoval(WDFDEVICE Device)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceQueryRemove', "NTSTATUS __fastcall EvtWdfDeviceQueryRemove(WDFDEVICE Device)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceQueryStop', "NTSTATUS __fastcall EvtWdfDeviceQueryStop(WDFDEVICE Device)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceUsageNotification', "void __fastcall EvtWdfDeviceUsageNotification(WDFDEVICE Device, WDF_SPECIAL_FILE_TYPE NotificationType, BOOLEAN IsInNotificationPath)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceRelationsQuery', "void __fastcall EvtWdfDeviceRelationsQuery(WDFDEVICE Device, DEVICE_RELATION_TYPE RelationType)")
-		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceUsageNotificationEx', "NTSTATUS __fastcall EvtWdfDeviceUsageNotificationEx(WDFDEVICE Device, WDF_SPECIAL_FILE_TYPE NotificationType, BOOLEAN IsInNotificationPath)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceUsageNotification', "void __fastcall EvtWdfDeviceUsageNotification(WDFDEVICE Device, _WDF_SPECIAL_FILE_TYPE NotificationType, BOOLEAN IsInNotificationPath)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceRelationsQuery', "void __fastcall EvtWdfDeviceRelationsQuery(WDFDEVICE Device, _DEVICE_RELATION_TYPE RelationType)")
+		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceUsageNotificationEx', "NTSTATUS __fastcall EvtWdfDeviceUsageNotificationEx(WDFDEVICE Device, _WDF_SPECIAL_FILE_TYPE NotificationType, BOOLEAN IsInNotificationPath)")
 
 def rename_callbacks_WdfDeviceInitSetFileObjectConfig():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetFileObjectConfig')
@@ -1950,6 +1876,8 @@ def rename_GUID_interface():
 				print(f"Failed: {action}: The function 'WdfDeviceCreateDeviceInterface' does not have a 3rd parameter!")
 				continue
 			param_expr = call_expr.a[2]
+			if param_expr.op == idaapi.cot_cast:
+				param_expr = param_expr.x
 			if param_expr.op == idaapi.cot_ref: # pointer
 				param_expr = param_expr.x
 			if param_expr.op == idaapi.cot_obj:

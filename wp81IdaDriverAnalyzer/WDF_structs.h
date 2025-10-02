@@ -13,29 +13,30 @@ typedef __int64 LONGLONG;
 typedef unsigned short USHORT;
 typedef short SHORT;
 typedef void VOID;
-typedef BYTE BOOLEAN;
 typedef void *PVOID;
+typedef void *HANDLE;
+typedef BYTE BOOLEAN;
 typedef char CHAR;
 typedef CHAR *PCHAR;
 typedef void *INTERFACE;
 typedef void *PIRP;
 typedef int NTSTATUS;
-typedef void *WDFCMRESLIST;
-typedef void *WDFCOLLECTION;
-typedef void *WDFDEVICE;
-typedef void *WDFDEVICE_INIT;
-typedef void *WDFDRIVER;
-typedef void *WDFFILEOBJECT;
-typedef void *WDFINTERRUPT;
-typedef void *WDFIOTARGET;
-typedef void *WDFLOOKASIDE;
-typedef void *WDFMEMORY;
-typedef void *WDFOBJECT;
-typedef void *WDFQUEUE;
-typedef void *WDFREQUEST;
-typedef void *WDFSPINLOCK;
-typedef void *WDFWAITLOCK;
-typedef void *WDFWORKITEM;
+typedef HANDLE WDFCMRESLIST;
+typedef HANDLE WDFCOLLECTION;
+typedef HANDLE WDFDEVICE;
+typedef HANDLE WDFDEVICE_INIT;
+typedef HANDLE WDFDRIVER;
+typedef HANDLE WDFFILEOBJECT;
+typedef HANDLE WDFINTERRUPT;
+typedef HANDLE WDFIOTARGET;
+typedef HANDLE WDFLOOKASIDE;
+typedef HANDLE WDFMEMORY;
+typedef HANDLE WDFOBJECT;
+typedef HANDLE WDFQUEUE;
+typedef HANDLE WDFREQUEST;
+typedef HANDLE WDFSPINLOCK;
+typedef HANDLE WDFWAITLOCK;
+typedef HANDLE WDFWORKITEM;
 
 typedef struct _UNICODE_STRING {
   USHORT Length;
@@ -43,49 +44,249 @@ typedef struct _UNICODE_STRING {
   PWSTR  Buffer;
 } UNICODE_STRING, *PUNICODE_STRING;
 
+struct _DRIVER_OBJECT { // Will be redefined later
+    int temporary_structure;
+};
+
+struct _DEVICE_OBJECT { // Will be redefined later
+    int temporary_structure;
+};
+
+struct _DRIVER_EXTENSION {
+    _DRIVER_OBJECT *DriverObject;
+    int (__fastcall *AddDevice)(_DRIVER_OBJECT *, _DEVICE_OBJECT *);
+    unsigned int Count;
+    _UNICODE_STRING ServiceKeyName;
+};
+
+struct _VPB {
+    __int16 Type;
+    __int16 Size;
+    unsigned __int16 Flags;
+    unsigned __int16 VolumeLabelLength;
+    _DRIVER_OBJECT *DeviceObject;
+    _DRIVER_OBJECT *RealDevice;
+    unsigned int SerialNumber;
+    unsigned int ReferenceCount;
+    wchar_t VolumeLabel[32];
+};
+
+struct _SECTION_OBJECT_POINTERS {
+    void *DataSectionObject;
+    void *SharedCacheMap;
+    void *ImageSectionObject;
+};
+
+struct _KEVENT {
+    __int8 Header[0x10]; // structure _DISPATCHER_HEADER
+};
+
+struct _IO_COMPLETION_CONTEXT {
+    void *Port;
+    void *Key;
+};
+
+struct _LIST_ENTRY {
+    _LIST_ENTRY *Flink;
+    _LIST_ENTRY *Blink;
+};
+
+struct _FILE_OBJECT {
+    __int16 Type;
+    __int16 Size;
+    _DEVICE_OBJECT *DeviceObject;
+    _VPB *Vpb;
+    void *FsContext;
+    void *FsContext2;
+    _SECTION_OBJECT_POINTERS *SectionObjectPointer;
+    void *PrivateCacheMap;
+    int FinalStatus;
+    _FILE_OBJECT *RelatedFileObject;
+    unsigned __int8 LockOperation;
+    unsigned __int8 DeletePending;
+    unsigned __int8 ReadAccess;
+    unsigned __int8 WriteAccess;
+    unsigned __int8 DeleteAccess;
+    unsigned __int8 SharedRead;
+    unsigned __int8 SharedWrite;
+    unsigned __int8 SharedDelete;
+    unsigned int Flags;
+    _UNICODE_STRING FileName;
+    LONGLONG CurrentByteOffset;
+    unsigned int Waiters;
+    unsigned int Busy;
+    void *LastLock;
+    _KEVENT Lock;
+    _KEVENT Event;
+    _IO_COMPLETION_CONTEXT *CompletionContext;
+    unsigned int IrpListLock;
+    _LIST_ENTRY IrpList;
+    void *FileObjectExtension;
+};
+
+struct _MDL
+{
+    _MDL *Next;
+    __int16 Size;
+    __int16 MdlFlags;
+    struct _EPROCESS *Process;
+    void *MappedSystemVa;
+    void *StartVa;
+    unsigned int ByteCount;
+    unsigned int ByteOffset;
+};
+
+struct _IO_STATUS_BLOCK {
+    union {
+        int Status;
+        void *Pointer;
+    } ___u0;
+    unsigned int Information;
+};
+
+struct _IRP {
+    __int16 Type;
+    unsigned __int16 Size;
+    _MDL *MdlAddress;
+    unsigned int Flags;
+    union {
+        void *MasterIrp;
+        int IrpCount;
+        void *SystemBuffer;
+    } AssociatedIrp;
+    _LIST_ENTRY ThreadListEntry;
+    _IO_STATUS_BLOCK IoStatus;
+    char RequestorMode;
+    unsigned __int8 PendingReturned;
+    char StackCount;
+    char CurrentLocation;
+    unsigned __int8 Cancel;
+    unsigned __int8 CancelIrql;
+    char ApcEnvironment;
+    unsigned __int8 AllocationFlags;
+    _IO_STATUS_BLOCK *UserIosb;
+    _KEVENT *UserEvent;
+    __int8 Overlay[0x08]; // TODO
+    void (__fastcall *CancelRoutine)(_DEVICE_OBJECT *, _IRP *);
+    void *UserBuffer;
+    __int8 Tail[0x30]; // TODO
+};
+
+struct __declspec(align(8)) _FILE_BASIC_INFORMATION {
+    LONGLONG CreationTime;
+    LONGLONG LastAccessTime;
+    LONGLONG LastWriteTime;
+    LONGLONG ChangeTime;
+    unsigned int FileAttributes;
+    // padding byte
+    // padding byte
+    // padding byte
+    // padding byte
+};
+
+struct __declspec(align(4)) _FILE_STANDARD_INFORMATION {
+    LONGLONG AllocationSize;
+    LONGLONG EndOfFile;
+    unsigned int NumberOfLinks;
+    unsigned __int8 DeletePending;
+    unsigned __int8 Directory;
+    // padding byte
+    // padding byte
+};
+
+struct __declspec(align(8)) _FILE_NETWORK_OPEN_INFORMATION // sizeof=0x38
+{
+    LONGLONG CreationTime;
+    LONGLONG LastAccessTime;
+    LONGLONG LastWriteTime;
+    LONGLONG ChangeTime;
+    LONGLONG AllocationSize;
+    LONGLONG EndOfFile;
+    unsigned int FileAttributes;
+    // padding byte
+    // padding byte
+    // padding byte
+    // padding byte
+};
+
+struct _ERESOURCE {
+    __int8 toDo[0x38];
+};
+
+struct _FAST_IO_DISPATCH {
+    unsigned int SizeOfFastIoDispatch;
+    unsigned __int8 (__fastcall *FastIoCheckIfPossible)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned __int8, unsigned int, unsigned __int8, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoRead)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned __int8, unsigned int, void *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoWrite)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned __int8, unsigned int, void *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoQueryBasicInfo)(_FILE_OBJECT *, unsigned __int8, _FILE_BASIC_INFORMATION *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoQueryStandardInfo)(_FILE_OBJECT *, unsigned __int8, _FILE_STANDARD_INFORMATION *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoLock)(_FILE_OBJECT *, LONGLONG *, LONGLONG *, struct _EPROCESS *, unsigned int, unsigned __int8, unsigned __int8, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoUnlockSingle)(_FILE_OBJECT *, LONGLONG *, LONGLONG *, struct _EPROCESS *, unsigned int, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoUnlockAll)(_FILE_OBJECT *, struct _EPROCESS *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoUnlockAllByKey)(_FILE_OBJECT *, void *, unsigned int, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoDeviceControl)(_FILE_OBJECT *, unsigned __int8, void *, unsigned int, void *, unsigned int, unsigned int, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    void (__fastcall *AcquireFileForNtCreateSection)(_FILE_OBJECT *);
+    void (__fastcall *ReleaseFileForNtCreateSection)(_FILE_OBJECT *);
+    void (__fastcall *FastIoDetachDevice)(_DEVICE_OBJECT *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoQueryNetworkOpenInfo)(_FILE_OBJECT *, unsigned __int8, _FILE_NETWORK_OPEN_INFORMATION *, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    int (__fastcall *AcquireForModWrite)(_FILE_OBJECT *, LONGLONG *, _ERESOURCE **, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *MdlRead)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned int, _MDL **, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *MdlReadComplete)(_FILE_OBJECT *, _MDL *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *PrepareMdlWrite)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned int, _MDL **, _IO_STATUS_BLOCK *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *MdlWriteComplete)(_FILE_OBJECT *, LONGLONG *, _MDL *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoReadCompressed)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned int, void *, _MDL **, _IO_STATUS_BLOCK *, struct _COMPRESSED_DATA_INFO *, unsigned int, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoWriteCompressed)(_FILE_OBJECT *, LONGLONG *, unsigned int, unsigned int, void *, _MDL **, _IO_STATUS_BLOCK *, struct _COMPRESSED_DATA_INFO *, unsigned int, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *MdlReadCompleteCompressed)(_FILE_OBJECT *, _MDL *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *MdlWriteCompleteCompressed)(_FILE_OBJECT *, LONGLONG *, _MDL *, _DEVICE_OBJECT *);
+    unsigned __int8 (__fastcall *FastIoQueryOpen)(_IRP *, _FILE_NETWORK_OPEN_INFORMATION *, _DEVICE_OBJECT *);
+    int (__fastcall *ReleaseForModWrite)(_FILE_OBJECT *, _ERESOURCE *, _DEVICE_OBJECT *);
+    int (__fastcall *AcquireForCcFlush)(_FILE_OBJECT *, _DEVICE_OBJECT *);
+    int (__fastcall *ReleaseForCcFlush)(_FILE_OBJECT *, _DEVICE_OBJECT *);
+};
+
 typedef struct _DRIVER_OBJECT {
-     SHORT Type;
-     SHORT Size;
-     PVOID DeviceObject;
-     ULONG Flags;
-     PVOID DriverStart;
-     ULONG DriverSize;
-     PVOID DriverSection;
-     PVOID DriverExtension;
-     UNICODE_STRING DriverName;
-     PUNICODE_STRING HardwareDatabase;
-     PVOID FastIoDispatch;
-     PVOID DriverInit;
-     PVOID DriverStartIo;
-     PVOID DriverUnload;
-     PVOID DispatchCreate;
-     PVOID DispatchCreateNamedPipe;
-     PVOID DispatchClose;
-     PVOID DispatchRead;
-     PVOID DispatchWrite;
-     PVOID DispatchQueryInformation;
-     PVOID DispatchSetInformation;
-     PVOID DispatchQueryEA;
-     PVOID DispatchSetEA;
-     PVOID DispatchFlushBuffers;
-     PVOID DispatchQueryVolumeInformation;
-     PVOID DispatchSetVolumeInformation;
-     PVOID DispatchDirectoryControl;
-     PVOID DispatchFileSystemControl;
-     PVOID DispatchDeviceIOControl;
-     PVOID DispatchInternalDeviceControl;
-     PVOID DispatchShutdown;
-     PVOID DispatchLockControl;
-     PVOID DispatchCleanup;
-     PVOID DispatchCreateMailslot;
-     PVOID DispatchQuerySecurity;
-     PVOID DispatchSetSecurity;
-     PVOID DispatchPower;
-     PVOID DispatchSystemControl;
-     PVOID DispatchDeviceChange;
-     PVOID DispatchQueryQuota;
-     PVOID DispatchSetQuota;
-     PVOID DispatchPNP;
+    __int16 Type;
+    __int16 Size;
+    _DEVICE_OBJECT *DeviceObject;
+    unsigned int Flags;
+    void *DriverStart;
+    unsigned int DriverSize;
+    void *DriverSection;
+    _DRIVER_EXTENSION *DriverExtension;
+    _UNICODE_STRING DriverName;
+    _UNICODE_STRING *HardwareDatabase;
+    _FAST_IO_DISPATCH *FastIoDispatch;
+    NTSTATUS (__fastcall *DriverInit)(_DRIVER_OBJECT *, _UNICODE_STRING *);
+    void (__fastcall *DriverStartIo)(_DEVICE_OBJECT *, _IRP *);
+    void (__fastcall *DriverUnload)(_DRIVER_OBJECT *);
+    NTSTATUS (__fastcall *DispatchCreate)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchCreateNamedPipe)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchClose)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchRead)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchWrite)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchQueryInformation)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSetInformation)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchQueryEA)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSetEA)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchFlushBuffers)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchQueryVolumeInformation)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSetVolumeInformation)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchDirectoryControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchFileSystemControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchDeviceIOControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchInternalDeviceControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchShutdown)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchLockControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchCleanup)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchCreateMailslot)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchQuerySecurity)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSetSecurity)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchPower)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSystemControl)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchDeviceChange)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchQueryQuota)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchSetQuota)(_DEVICE_OBJECT *, _IRP *);
+    NTSTATUS (__fastcall *DispatchPNP)(_DEVICE_OBJECT *, _IRP *);
 } DRIVER_OBJECT, *PDRIVER_OBJECT;
 
 typedef NTSTATUS __fastcall FN_WDF_DRIVER_DEVICE_ADD(WDFDRIVER Driver, WDFDEVICE_INIT *DeviceInit);
@@ -157,92 +358,194 @@ struct _WPP_TRACE_CONTROL_BLOCK {
     unsigned __int64 RegHandle;
 };
 
-struct _MDL
-{
-    _MDL *Next;
+struct __declspec(align(4)) _KDEVICE_QUEUE {
+    __int16 Type;
     __int16 Size;
-    __int16 MdlFlags;
-    struct _EPROCESS *Process;
-    void *MappedSystemVa;
-    void *StartVa;
-    unsigned int ByteCount;
-    unsigned int ByteOffset;
+    _LIST_ENTRY DeviceListHead;
+    unsigned int Lock;
+    unsigned __int8 Busy;
+    // padding byte
+    // padding byte
+    // padding byte
 };
 
-struct _LIST_ENTRY {
-    _LIST_ENTRY *Flink;
-    _LIST_ENTRY *Blink;
+struct _KDPC {
+    unsigned __int8 Type;
+    unsigned __int8 Importance;
+    volatile unsigned __int16 Number;
+    _LIST_ENTRY DpcListEntry;
+    void (__fastcall *DeferredRoutine)(_KDPC *, void *, void *, void *);
+    void *DeferredContext;
+    void *SystemArgument1;
+    void *SystemArgument2;
+    void *DpcData;
 };
 
-struct _IO_STATUS_BLOCK {
-    union {
-        int Status;
-        void *Pointer;
-    } ___u0;
-    unsigned int Information;
-};
-
-struct _KEVENT {
-    __int8 Header[0x10]; // structure _DISPATCHER_HEADER
-};
-
-struct _IRP {
+struct _DEVOBJ_EXTENSION {
     __int16 Type;
     unsigned __int16 Size;
-    _MDL *MdlAddress;
-    unsigned int Flags;
-    union {
-        void *MasterIrp;
-        int IrpCount;
-        void *SystemBuffer;
-    } AssociatedIrp;
-    _LIST_ENTRY ThreadListEntry;
-    _IO_STATUS_BLOCK IoStatus;
-    char RequestorMode;
-    unsigned __int8 PendingReturned;
-    char StackCount;
-    char CurrentLocation;
-    unsigned __int8 Cancel;
-    unsigned __int8 CancelIrql;
-    char ApcEnvironment;
-    unsigned __int8 AllocationFlags;
-    _IO_STATUS_BLOCK *UserIosb;
-    _KEVENT *UserEvent;
-    __int8 Overlay[0x08];
-    void (__fastcall *CancelRoutine)(void *deviceObject, _IRP *);
-    void *UserBuffer;
-    __int8 Tail[0x30];
+    _DRIVER_OBJECT *DeviceObject;
 };
 
+struct _DEVICE_OBJECT {
+    __int16 Type;
+    unsigned __int16 Size;
+    int ReferenceCount;
+    _DRIVER_OBJECT *DriverObject;
+    _DEVICE_OBJECT *NextDevice;
+    _DEVICE_OBJECT *AttachedDevice;
+    _IRP *CurrentIrp;
+    struct _IO_TIMER *Timer;
+    unsigned int Flags;
+    unsigned int Characteristics;
+    _VPB *Vpb;
+    void *DeviceExtension;
+    unsigned int DeviceType;
+    char StackSize;
+    // padding byte
+    // padding byte
+    // padding byte
+    __int8 Queue[0x28];
+    unsigned int AlignmentRequirement;
+    _KDEVICE_QUEUE DeviceQueue;
+    _KDPC Dpc;
+    unsigned int ActiveThreadCount;
+    void *SecurityDescriptor;
+    _KEVENT DeviceLock;
+    unsigned __int16 SectorSize;
+    unsigned __int16 Spare1;
+    _DEVOBJ_EXTENSION *DeviceObjectExtension;
+    void *Reserved;
+};
 
+struct _WDF_VERSION {
+    unsigned int Major;
+    unsigned int Minor;
+    unsigned int Build;
+};
 
-// struct _DEVICE_OBJECT {
-    // __int16 Type;
-    // unsigned __int16 Size;
-    // int ReferenceCount;
-    // _DRIVER_OBJECT *DriverObject;
-    // _DEVICE_OBJECT *NextDevice;
-    // _DEVICE_OBJECT *AttachedDevice;
-    // _IRP *CurrentIrp;
-    // struct _IO_TIMER *Timer;
-    // unsigned int Flags;
-    // unsigned int Characteristics;
-    // _VPB *Vpb;
-    // void *DeviceExtension;
-    // unsigned int DeviceType;
-    // char StackSize;
-    // // padding byte
-    // // padding byte
-    // // padding byte
-    // _DEVICE_OBJECT Queue;
-    // unsigned int AlignmentRequirement;
-    // _KDEVICE_QUEUE DeviceQueue;
-    // _KDPC Dpc;
-    // unsigned int ActiveThreadCount;
-    // void *SecurityDescriptor;
-    // _KEVENT DeviceLock;
-    // unsigned __int16 SectorSize;
-    // unsigned __int16 Spare1;
-    // _DEVOBJ_EXTENSION *DeviceObjectExtension;
-    // void *Reserved;
-// };
+struct _WDF_BIND_INFO {
+    unsigned int Size;
+    wchar_t *Component;
+    _WDF_VERSION Version;
+    unsigned int FuncCount;
+    void (__fastcall **FuncTable)();
+    PVOID Module;
+};
+
+struct _EVENT_DESCRIPTOR {
+    unsigned __int16 Id;
+    unsigned __int8 Version;
+    unsigned __int8 Channel;
+    unsigned __int8 Level;
+    unsigned __int8 Opcode;
+    unsigned __int16 Task;
+    unsigned __int64 Keyword;
+};
+
+enum _WDF_POWER_DEVICE_STATE : __int32 {
+    WdfPowerDeviceInvalid = 0x0,
+    WdfPowerDeviceD0      = 0x1,
+    WdfPowerDeviceD1      = 0x2,
+    WdfPowerDeviceD2      = 0x3,
+    WdfPowerDeviceD3      = 0x4,
+    WdfPowerDeviceD3Final = 0x5,
+    WdfPowerDevicePrepareForHibernation = 0x6,
+    WdfPowerDeviceMaximum = 0x7,
+};
+
+enum _WDF_SPECIAL_FILE_TYPE : __int32 {
+    WdfSpecialFileUndefined   = 0x0,
+    WdfSpecialFilePaging      = 0x1,
+    WdfSpecialFileHibernation = 0x2,
+    WdfSpecialFileDump        = 0x3,
+    WdfSpecialFileBoot        = 0x4,
+    WdfSpecialFileMax         = 0x5,
+};
+
+enum _DEVICE_RELATION_TYPE : __int32 {
+    BusRelations         = 0x0,
+    EjectionRelations    = 0x1,
+    PowerRelations       = 0x2,
+    RemovalRelations     = 0x3,
+    TargetDeviceRelation = 0x4,
+    SingleBusRelations   = 0x5,
+    TransportRelations   = 0x6,
+};
+
+struct _WDF_PNPPOWER_EVENT_CALLBACKS {
+    unsigned int Size;
+    int (__fastcall *EvtDeviceD0Entry)(WDFDEVICE, _WDF_POWER_DEVICE_STATE);
+    int (__fastcall *EvtDeviceD0EntryPostInterruptsEnabled)(WDFDEVICE, _WDF_POWER_DEVICE_STATE);
+    int (__fastcall *EvtDeviceD0Exit)(WDFDEVICE, _WDF_POWER_DEVICE_STATE);
+    int (__fastcall *EvtDeviceD0ExitPreInterruptsDisabled)(WDFDEVICE, _WDF_POWER_DEVICE_STATE);
+    int (__fastcall *EvtDevicePrepareHardware)(WDFDEVICE, WDFCMRESLIST, WDFCMRESLIST);
+    int (__fastcall *EvtDeviceReleaseHardware)(WDFDEVICE, WDFCMRESLIST);
+    void (__fastcall *EvtDeviceSelfManagedIoCleanup)(WDFDEVICE);
+    void (__fastcall *EvtDeviceSelfManagedIoFlush)(WDFDEVICE);
+    int (__fastcall *EvtDeviceSelfManagedIoInit)(WDFDEVICE);
+    int (__fastcall *EvtDeviceSelfManagedIoSuspend)(WDFDEVICE);
+    int (__fastcall *EvtDeviceSelfManagedIoRestart)(WDFDEVICE);
+    void (__fastcall *EvtDeviceSurpriseRemoval)(WDFDEVICE);
+    int (__fastcall *EvtDeviceQueryRemove)(WDFDEVICE);
+    int (__fastcall *EvtDeviceQueryStop)(WDFDEVICE);
+    void (__fastcall *EvtDeviceUsageNotification)(WDFDEVICE, _WDF_SPECIAL_FILE_TYPE, BOOLEAN);
+    void (__fastcall *EvtDeviceRelationsQuery)(WDFDEVICE, _DEVICE_RELATION_TYPE);
+    int (__fastcall *EvtDeviceUsageNotificationEx)(WDFDEVICE, _WDF_SPECIAL_FILE_TYPE, BOOLEAN);
+};
+
+enum _WDF_TRI_STATE : __int32 {
+    WdfFalse      = 0x0,
+    WdfTrue       = 0x1,
+    WdfUseDefault = 0x2,
+};
+
+enum _WDF_FILEOBJECT_CLASS : __int32 {
+    WdfFileObjectInvalid             = 0x0,
+    WdfFileObjectNotRequired         = 0x1,
+    WdfFileObjectWdfCanUseFsContext  = 0x2,
+    WdfFileObjectWdfCanUseFsContext2 = 0x3,
+    WdfFileObjectWdfCannotUseFsContexts = 0x4,
+    WdfFileObjectCanBeOptional       = 0x80000000,
+};
+
+struct _WDF_FILEOBJECT_CONFIG {
+    unsigned int Size;
+    void (__fastcall *EvtDeviceFileCreate)(WDFDEVICE, WDFREQUEST, WDFFILEOBJECT);
+    void (__fastcall *EvtFileClose)(WDFFILEOBJECT);
+    void (__fastcall *EvtFileCleanup)(WDFFILEOBJECT);
+    _WDF_TRI_STATE AutoForwardCleanupClose;
+    _WDF_FILEOBJECT_CLASS FileObjectClass;
+};
+
+enum _WDF_IO_QUEUE_DISPATCH_TYPE : __int32 {
+    WdfIoQueueDispatchInvalid    = 0x0,
+    WdfIoQueueDispatchSequential = 0x1,
+    WdfIoQueueDispatchParallel   = 0x2,
+    WdfIoQueueDispatchManual     = 0x3,
+    WdfIoQueueDispatchMax        = 0x4,
+};
+
+struct _WDF_IO_QUEUE_CONFIG {
+    unsigned int Size;
+    _WDF_IO_QUEUE_DISPATCH_TYPE DispatchType;
+    _WDF_TRI_STATE PowerManaged;
+    unsigned __int8 AllowZeroLengthRequests;
+    unsigned __int8 DefaultQueue;
+    // padding byte
+    // padding byte
+    void (__fastcall *EvtIoDefault)(WDFQUEUE, WDFREQUEST);
+    void (__fastcall *EvtIoRead)(WDFQUEUE, WDFREQUEST, size_t);
+    void (__fastcall *EvtIoWrite)(WDFQUEUE, WDFREQUEST, size_t);
+    void (__fastcall *EvtIoDeviceControl)(WDFQUEUE, WDFREQUEST, size_t, size_t, ULONG);
+    void (__fastcall *EvtIoInternalDeviceControl)(WDFQUEUE, WDFREQUEST, size_t, size_t, ULONG);
+    void (__fastcall *EvtIoStop)(WDFQUEUE, WDFREQUEST, ULONG);
+    void (__fastcall *EvtIoResume)(WDFQUEUE, WDFREQUEST);
+    void (__fastcall *EvtIoCanceledOnQueue)(WDFQUEUE, WDFREQUEST);
+    union {
+      struct {
+        ULONG NumberOfPresentedRequests;
+      } Parallel;
+    } Settings;
+    WDFDRIVER Driver;
+};
