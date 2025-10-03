@@ -106,7 +106,7 @@ kmdf1_11 = [
 	("WdfDeviceInitRegisterPnpStateChangeCallback",None),
 	("WdfDeviceInitRegisterPowerStateChangeCallback",None),
 	("WdfDeviceInitRegisterPowerPolicyStateChangeCallback",None),
-	("WdfDeviceInitSetIoType","typedef VOID __fastcall WDF_DEVICE_INIT_SET_IOTYPE(int, WDFDEVICE_INIT *DeviceInit, WDF_DEVICE_IO_TYPE IoType);"),
+	("WdfDeviceInitSetIoType","typedef VOID __fastcall WDF_DEVICE_INIT_SET_IOTYPE(int, WDFDEVICE_INIT *DeviceInit, _WDF_DEVICE_IO_TYPE IoType);"),
 	("WdfDeviceInitSetExclusive",None),
 	("WdfDeviceInitSetPowerNotPageable",None),
 	("WdfDeviceInitSetPowerPageable",None),
@@ -243,7 +243,7 @@ kmdf1_11 = [
 	("WdfMemoryAssignBuffer",None),
 	("WdfMemoryCopyToBuffer",None),
 	("WdfMemoryCopyFromBuffer",None),
-	("WdfLookasideListCreate","typedef NTSTATUS __fastcall WDF_LOOKASIDE_LIST_CREATE(int, _WDF_OBJECT_ATTRIBUTES *LookasideAttributes, size_t BufferSize, POOL_TYPE PoolType, _WDF_OBJECT_ATTRIBUTES *MemoryAttributes, ULONG PoolTag, WDFLOOKASIDE *Lookaside);"),
+	("WdfLookasideListCreate","typedef NTSTATUS __fastcall WDF_LOOKASIDE_LIST_CREATE(int, _WDF_OBJECT_ATTRIBUTES *LookasideAttributes, size_t BufferSize, _POOL_TYPE PoolType, _WDF_OBJECT_ATTRIBUTES *MemoryAttributes, ULONG PoolTag, WDFLOOKASIDE *Lookaside);"),
 	("WdfMemoryCreateFromLookaside","typedef NTSTATUS __fastcall WDF_MEMORY_CREATE_FROM_LOOKASIDE(int, WDFLOOKASIDE Lookaside, WDFMEMORY *Memory);"),
 	("WdfDeviceMiniportCreate",None),
 	("WdfDriverMiniportUnload","typedef VOID __fastcall WDF_DRIVER_MINIPORT_UNLOAD(int, WDFDRIVER Driver);"),
@@ -635,126 +635,7 @@ def add_structures():
 		raise Exception("Failed to parse the 'WDF_structs.h' declarations.\n")
 	print(f"Done  : {action}")
 	
-	unicode_string_id = create_structure(
-		UNICODE_STRING_STRUCT_NAME+"2", 
-		[
-			("Length", 0x00, idc.FF_WORD, -1, 2),
-			("MaximumLength", 0x02, idc.FF_WORD, -1, 2),
-			("Buffer", 0x04, idc.FF_DWORD, -1, 4),
-		]
-	)
-	# create_structure(
-		# WDF_IO_QUEUE_CONFIG_STRUCT_NAME,
-		# [
-			# ("Size", 0x00, idc.FF_DWORD, -1, 4),
-			# ("DispatchType", 0x04, idc.FF_DWORD, -1, 4),
-			# ("PowerManaged", 0x08, idc.FF_DWORD, -1, 4),
-			# ("AllowZeroLengthRequests", 0x0C, idc.FF_BYTE, -1, 1),
-			# ("DefaultQueue", 0x0D, idc.FF_BYTE, -1, 1),
-			# ("EvtIoDefault", 0x10, idc.FF_DWORD, -1, 4),
-			# ("EvtIoRead", 0x14, idc.FF_DWORD, -1, 4),
-			# ("EvtIoWrite", 0x18, idc.FF_DWORD, -1, 4),
-			# ("EvtIoDeviceControl", 0x1C, idc.FF_DWORD, -1, 4),
-			# ("EvtIoInternalDeviceControl", 0x20, idc.FF_DWORD, -1, 4),
-			# ("EvtIoStop", 0x24, idc.FF_DWORD, -1, 4),
-			# ("EvtIoResume", 0x28, idc.FF_DWORD, -1, 4),
-			# ("EvtIoCanceledOnQueue", 0x2C, idc.FF_DWORD, -1, 4),
-			# ("Settings", 0x30, idc.FF_DWORD, -1, 4),
-			# ("Driver", 0x34, idc.FF_DWORD, -1, 4),
-		# ]
-	# )
-	create_structure(
-		WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("Interface", 0x04, idc.FF_DWORD, -1, 4),
-			("InterfaceType", 0x08, idc.FF_DWORD, -1, 4),
-			("SendQueryToParentStack", 0x0C, idc.FF_BYTE, -1, 1),
-			("EvtDeviceProcessQueryInterfaceRequest", 0x10, idc.FF_DWORD, -1, 4),
-			("ImportInterface", 0x14, idc.FF_BYTE, -1, 1),
-			("align", 0x15, idc.FF_BYTE, -1, 3),
-		]
-	)
-	create_structure(
-		WDF_INTERRUPT_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("SpinLock", 0x04, idc.FF_DWORD, -1, 4),
-			("ShareVector", 0x08, idc.FF_DWORD, -1, 4),
-			("FloatingSave", 0x0C, idc.FF_BYTE, -1, 1),
-			("AutomaticSerialization", 0x0D, idc.FF_BYTE, -1, 1),
-			("EvtInterruptIsr", 0x10, idc.FF_DWORD, -1, 4),
-			("EvtInterruptDpc", 0x14, idc.FF_DWORD, -1, 4),
-			("EvtInterruptEnable", 0x18, idc.FF_DWORD, -1, 4),
-			("EvtInterruptDisable", 0x1C, idc.FF_DWORD, -1, 4),
-			("EvtInterruptWorkItem", 0x20, idc.FF_DWORD, -1, 4),
-			("InterruptRaw", 0x24, idc.FF_DWORD, -1, 4),
-			("InterruptTranslated", 0x28, idc.FF_DWORD, -1, 4),
-			("WaitLock", 0x2C, idc.FF_DWORD, -1, 4),
-			("PassiveHandling", 0x30, idc.FF_BYTE, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_IO_TARGET_OPEN_PARAMS_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_DWORD, -1, 4),
-			("Type", 0x04, idc.FF_DWORD, -1, 4),
-			("EvtIoTargetQueryRemove", 0x08, idc.FF_DWORD, -1, 4),
-			("EvtIoTargetRemoveCanceled", 0x0C, idc.FF_DWORD, -1, 4),
-			("EvtIoTargetRemoveComplete", 0x10, idc.FF_DWORD, -1, 4),
-			("TargetDeviceObject", 0x14, idc.FF_DWORD, -1, 4),
-			("TargetFileObject", 0x18, idc.FF_DWORD, -1, 4),
-			("TargetDeviceName", 0x1C, idc.FF_STRUCT, unicode_string_id, idc.get_struc_size(unicode_string_id)),
-			("DesiredAccess", 0x24, idc.FF_DWORD, -1, 4),
-			("ShareAccess", 0x28, idc.FF_DWORD, -1, 4),
-			("FileAttributes", 0x2C, idc.FF_DWORD, -1, 4),
-			("CreateDisposition", 0x30, idc.FF_DWORD, -1, 4),
-			("CreateOptions", 0x34, idc.FF_DWORD, -1, 4),
-			("EaBuffer", 0x38, idc.FF_DWORD, -1, 4),
-			("EaBufferLength", 0x3C, idc.FF_DWORD, -1, 4),
-			("AllocationSize", 0x40, idc.FF_DWORD, -1, 4),
-			("FileInformation", 0x44, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_MEMORY_DESCRIPTOR_STRUCT_NAME,
-		[
-			("Type", 0x00, idc.FF_DWORD, -1, 4),
-			("Pointer", 0x04, idc.FF_DWORD, -1, 4),
-			("LengthOrOffset", 0x08, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_REQUEST_SEND_OPTIONS_STRUCT_NAME,
-		[
-			("Type", 0x00, idc.FF_DWORD, -1, 4),
-			("Flags", 0x04, idc.FF_DWORD, -1, 4),
-			("Timeout", 0x08, idc.FF_QWORD, -1, 8),
-		]
-	)
-	create_structure(
-		WDF_REQUEST_PARAMETERS_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_WORD, -1, 2),
-			("MinorFunction", 0x02, idc.FF_BYTE, -1, 1),
-			("Type", 0x04, idc.FF_DWORD, -1, 4),
-			("Arg1", 0x08, idc.FF_DWORD, -1, 4),
-			("Arg2", 0x0C, idc.FF_DWORD, -1, 4),
-			("IoControlCode", 0x10, idc.FF_DWORD, -1, 4),
-			("Arg4", 0x14, idc.FF_DWORD, -1, 4),
-		]
-	)
-	create_structure(
-		WDF_WORKITEM_CONFIG_STRUCT_NAME,
-		[
-			("Size", 0x00, idc.FF_WORD, -1, 2),
-			("EvtWorkItemFunc", 0x04, idc.FF_DWORD, -1, 4),
-			("AutomaticSerialization", 0x08, idc.FF_DWORD, -1, 4),
-		]
-	)
-	
 	add_WDFFUNCTIONS_structure()
-
 
 def add_NT_STATUS_VALUES_enum():
 	script_path = os.path.abspath(__file__)
@@ -765,130 +646,6 @@ def add_NT_STATUS_VALUES_enum():
 		file_content = file.read()
 	tif = ida_typeinf.tinfo_t(file_content) # Much faster and memory efficient than using idc.add_enum_member for each member
 	tif.set_named_type(None, "NT_STATUS_VALUES")
-
-
-def add_enums():
-	enum_id = idc.add_enum(-1, '_WPP_TRACE_API_SUITE', 0x00000010)
-	members_to_add = {
-		"WppTraceDisabledSuite": 0,
-		"WppTraceWin2K": 1,
-		"WppTraceWinXP": 2,
-		"WppTraceTraceLH": 3,
-		"WppTraceServer08": 4,
-		"WppTraceMaxSuite": 5
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, '_TRACE_INFORMATION_CLASS', 0x00000010)
-	members_to_add = {
-		"TraceIdClass": 0,
-		"TraceHandleClass": 1,
-		"TraceEnableFlagsClass": 2,
-		"TraceEnableLevelClass": 3,
-		"GlobalLoggerHandleClass": 4,
-		"EventLoggerHandleClass": 5,
-		"AllLoggerHandlesClass": 6,
-		"TraceHandleByNameClass": 7,
-		"LoggerEventsLostClass": 8,
-		"TraceSessionSettingsClass": 9,
-		"LoggerEventsLoggedClass": 0xA,
-		"DiskIoNotifyRoutinesClass": 0xB,
-		"TraceInformationClassReserved1": 0xC,
-		"FltIoNotifyRoutinesClass": 0xD,
-		"TraceInformationClassReserved2": 0xE,
-		"WdfNotifyRoutinesClass": 0xF,
-		"MaxTraceInformationClass": 0x10
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)	
-	
-	enum_id = idc.add_enum(-1, 'WDF_DEVICE_IO_TYPE', 0x00000010)
-	members_to_add = {
-		"WdfDeviceIoUndefined": 0,
-		"WdfDeviceIoNeither": 1,
-		"WdfDeviceIoBuffered": 2,
-		"WdfDeviceIoDirect": 3,
-		"WdfDeviceIoBufferedOrDirect": 4,
-		"WdfDeviceIoMaximum": 5
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, '_WDF_IO_TARGET_OPEN_TYPE', 0x00000010)
-	members_to_add = {
-		"WdfIoTargetOpenUndefined": 0,
-		"WdfIoTargetOpenUseExistingDevice": 1,
-		"WdfIoTargetOpenByName": 2,
-		"WdfIoTargetOpenReopen": 3
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, '_WDF_MEMORY_DESCRIPTOR_TYPE', 0x00000010)
-	members_to_add = {
-		"WdfMemoryDescriptorTypeInvalid": 0,
-		"WdfMemoryDescriptorTypeBuffer": 1,
-		"WdfMemoryDescriptorTypeMdl": 2,
-		"WdfMemoryDescriptorTypeHandle": 3
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, 'POOL_TYPE', 0x00000010)
-	members_to_add = {
-		"NonPagedPool": 0,
-		"NonPagedPoolExecute": 0,
-		"PagedPool": 1,
-		"NonPagedPoolMustSucceed": 2,
-		"DontUseThisType": 3,
-		"NonPagedPoolCacheAligned": 4,
-		"PagedPoolCacheAligned": 5,
-		"NonPagedPoolCacheAlignedMustS": 6,
-		"MaxPoolType": 7,
-		"NonPagedPoolNx" : 512
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	enum_id = idc.add_enum(-1, 'WDF_REQUEST_TYPE', 0x00000010)
-	members_to_add = {
-		"WdfRequestTypeCreate" : 0x0,
-		"WdfRequestTypeCreateNamedPipe" : 0x1,
-		"WdfRequestTypeClose" : 0x2,
-		"WdfRequestTypeRead" : 0x3,
-		"WdfRequestTypeWrite" : 0x4,
-		"WdfRequestTypeQueryInformation" : 0x5,
-		"WdfRequestTypeSetInformation" : 0x6,
-		"WdfRequestTypeQueryEA" : 0x7,
-		"WdfRequestTypeSetEA" : 0x8,
-		"WdfRequestTypeFlushBuffers" : 0x9,
-		"WdfRequestTypeQueryVolumeInformation" : 0xa,
-		"WdfRequestTypeSetVolumeInformation" : 0xb,
-		"WdfRequestTypeDirectoryControl" : 0xc,
-		"WdfRequestTypeFileSystemControl" : 0xd,
-		"WdfRequestTypeDeviceControl" : 0xe,
-		"WdfRequestTypeDeviceControlInternal" : 0xf,
-		"WdfRequestTypeShutdown" : 0x10,
-		"WdfRequestTypeLockControl" : 0x11,
-		"WdfRequestTypeCleanup" : 0x12,
-		"WdfRequestTypeCreateMailSlot" : 0x13,
-		"WdfRequestTypeQuerySecurity" : 0x14,
-		"WdfRequestTypeSetSecurity" : 0x15,
-		"WdfRequestTypePower" : 0x16,
-		"WdfRequestTypeSystemControl" : 0x17,
-		"WdfRequestTypeDeviceChange" : 0x18,
-		"WdfRequestTypeQueryQuota" : 0x19,
-		"WdfRequestTypeSetQuota" : 0x1A,
-		"WdfRequestTypePnp" : 0x1B,
-		"WdfRequestTypeOther" : 0x1C,
-		"WdfRequestTypeUsb" : 0x40,
-		"WdfRequestTypeNoFormat" : 0xFF
-	}
-	for member_name, member_value in members_to_add.items():
-		idc.add_enum_member(enum_id, member_name, member_value, -1)
-	
-	add_NT_STATUS_VALUES_enum()
 
 def extract_function_name_from_proto(proto):
 	# Split the string by opening parenthesis
@@ -2076,7 +1833,7 @@ def cast_WDF_functions():
 			if call_expr.x.op  == idaapi.cot_cast:
 				print(f"type={call_expr.x.type}")
 				new_type_info = idaapi.tinfo_t()
-				new_type_info.get_named_type(None, "void __fastcall WdfDeviceInitSetIoType(int todo, WDFDEVICE_INIT* DeviceInit, WDF_DEVICE_IO_TYPE IoType)")
+				new_type_info.get_named_type(None, "void __fastcall WdfDeviceInitSetIoType(int todo, WDFDEVICE_INIT* DeviceInit, _WDF_DEVICE_IO_TYPE IoType)")
 				print(f"new type={new_type_info}")
 				call_expr.x.type.swap(new_type_info)
 				print(f"swap type={call_expr.x.type}")

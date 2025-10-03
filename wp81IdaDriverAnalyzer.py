@@ -47,7 +47,7 @@ class Wp81IdaDriverAnalyzerPlugin(ida_idaapi.plugin_t):
 		try:
 			ida_kernwin.show_wait_box("HIDECANCEL\nWp81 Driver Analyzer: Analyzing")
 			
-			wdf.add_enums()
+			wdf.add_NT_STATUS_VALUES_enum()
 			wdf.add_structures()
 			wdf.rename_functions_and_offsets()
 			

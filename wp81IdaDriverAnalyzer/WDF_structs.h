@@ -16,10 +16,9 @@ typedef void VOID;
 typedef void *PVOID;
 typedef void *HANDLE;
 typedef BYTE BOOLEAN;
+typedef unsigned char UCHAR;
 typedef char CHAR;
 typedef CHAR *PCHAR;
-typedef void *INTERFACE;
-typedef void *PIRP;
 typedef int NTSTATUS;
 typedef HANDLE WDFCMRESLIST;
 typedef HANDLE WDFCOLLECTION;
@@ -172,6 +171,8 @@ struct _IRP {
     __int8 Tail[0x30]; // TODO
 };
 
+typedef _IRP *PIRP;
+
 struct __declspec(align(8)) _FILE_BASIC_INFORMATION {
     LONGLONG CreationTime;
     LONGLONG LastAccessTime;
@@ -244,7 +245,7 @@ struct _FAST_IO_DISPATCH {
     int (__fastcall *ReleaseForCcFlush)(_FILE_OBJECT *, _DEVICE_OBJECT *);
 };
 
-typedef struct _DRIVER_OBJECT {
+struct _DRIVER_OBJECT {
     __int16 Type;
     __int16 Size;
     _DEVICE_OBJECT *DeviceObject;
@@ -287,62 +288,61 @@ typedef struct _DRIVER_OBJECT {
     NTSTATUS (__fastcall *DispatchQueryQuota)(_DEVICE_OBJECT *, _IRP *);
     NTSTATUS (__fastcall *DispatchSetQuota)(_DEVICE_OBJECT *, _IRP *);
     NTSTATUS (__fastcall *DispatchPNP)(_DEVICE_OBJECT *, _IRP *);
-} DRIVER_OBJECT, *PDRIVER_OBJECT;
+};
 
 typedef NTSTATUS __fastcall FN_WDF_DRIVER_DEVICE_ADD(WDFDRIVER Driver, WDFDEVICE_INIT *DeviceInit);
 typedef VOID __fastcall FN_WDF_DRIVER_UNLOAD(WDFDRIVER Driver);
 
-typedef struct _WDF_DRIVER_CONFIG {
+struct _WDF_DRIVER_CONFIG {
   ULONG                     Size;
   FN_WDF_DRIVER_DEVICE_ADD *EvtDriverDeviceAdd;
   FN_WDF_DRIVER_UNLOAD     *EvtDriverUnload;
   ULONG                     DriverInitFlags;
   ULONG                     DriverPoolTag;
-} WDF_DRIVER_CONFIG, *PWDF_DRIVER_CONFIG;
+};
 
-typedef struct _WDF_OBJECT_CONTEXT_TYPE_INFO {
+struct _WDF_OBJECT_CONTEXT_TYPE_INFO {
   ULONG                          Size;
   PCHAR                          ContextName;
   size_t                         ContextSize;
   PVOID                          UniqueType;
   PVOID                          EvtDriverGetUniqueContextType;
-} WDF_OBJECT_CONTEXT_TYPE_INFO, *PWDF_OBJECT_CONTEXT_TYPE_INFO;
+};
 
-typedef enum _WDF_EXECUTION_LEVEL { 
+enum _WDF_EXECUTION_LEVEL { 
   WdfExecutionLevelInvalid            = 0x00,
   WdfExecutionLevelInheritFromParent  = 0x1,
   WdfExecutionLevelPassive            = 0x2,
   WdfExecutionLevelDispatch           = 0x3
-} WDF_EXECUTION_LEVEL;
+};
 
-typedef enum _WDF_SYNCHRONIZATION_SCOPE { 
+enum _WDF_SYNCHRONIZATION_SCOPE { 
   WdfSynchronizationScopeInvalid            = 0x00,
   WdfSynchronizationScopeInheritFromParent  = 0x1,
   WdfSynchronizationScopeDevice             = 0x2,
   WdfSynchronizationScopeQueue              = 0x3,
   WdfSynchronizationScopeNone               = 0x4
-} WDF_SYNCHRONIZATION_SCOPE;
+};
 
 typedef VOID __fastcall FN_WDF_OBJECT_CONTEXT_CLEANUP(WDFOBJECT Object);
 typedef VOID __fastcall FN_WDF_OBJECT_CONTEXT_DESTROY(WDFOBJECT Object);
 
-
-typedef struct _WDF_OBJECT_ATTRIBUTES {
+struct _WDF_OBJECT_ATTRIBUTES {
   ULONG                          Size;
   FN_WDF_OBJECT_CONTEXT_CLEANUP *EvtCleanupCallback;
   FN_WDF_OBJECT_CONTEXT_DESTROY *EvtDestroyCallback;
-  WDF_EXECUTION_LEVEL            ExecutionLevel;
-  WDF_SYNCHRONIZATION_SCOPE      SynchronizationScope;
+  _WDF_EXECUTION_LEVEL            ExecutionLevel;
+  _WDF_SYNCHRONIZATION_SCOPE      SynchronizationScope;
   WDFOBJECT                      ParentObject;
   size_t                         ContextSizeOverride;
-  PWDF_OBJECT_CONTEXT_TYPE_INFO  ContextTypeInfo;
-} WDF_OBJECT_ATTRIBUTES, *PWDF_OBJECT_ATTRIBUTES;
+  _WDF_OBJECT_CONTEXT_TYPE_INFO  *ContextTypeInfo;
+};
 
-typedef struct _EVENT_FILTER_DESCRIPTOR {
+struct _EVENT_FILTER_DESCRIPTOR {
   ULONGLONG Ptr;
   ULONG     Size;
   ULONG     Type;
-} EVENT_FILTER_DESCRIPTOR, *PEVENT_FILTER_DESCRIPTOR;
+};
 
 struct _WPP_TRACE_CONTROL_BLOCK {
     int (__fastcall *Callback)(unsigned __int8, void *, unsigned int, void *, void *, unsigned int *);
@@ -548,4 +548,249 @@ struct _WDF_IO_QUEUE_CONFIG {
       } Parallel;
     } Settings;
     WDFDRIVER Driver;
+};
+
+struct _INTERFACE {
+    USHORT Size;
+    USHORT Version;
+    PVOID  Context;
+    void (__fastcall *InterfaceReference)(void *);
+    void (__fastcall *InterfaceDereference)(void *);
+};
+
+typedef NTSTATUS __fastcall FN_WDF_DEVICE_PROCESS_QUERY_INTERFACE_REQUEST( WDFDEVICE Device, GUID *InterfaceType, _INTERFACE *ExposedInterface, PVOID ExposedInterfaceSpecificData);
+
+struct __declspec(align(4)) _WDF_QUERY_INTERFACE_CONFIG {
+  ULONG                                          Size;
+  _INTERFACE                                     *Interface;
+  const GUID                                     *InterfaceType;
+  BOOLEAN                                        SendQueryToParentStack;
+  FN_WDF_DEVICE_PROCESS_QUERY_INTERFACE_REQUEST  *EvtDeviceProcessQueryInterfaceRequest;
+  BOOLEAN                                        ImportInterface;
+};
+
+struct __declspec(align(4)) _WDF_INTERRUPT_CONFIG {
+    ULONG Size;
+    WDFSPINLOCK SpinLock;
+    _WDF_TRI_STATE ShareVector;
+    BOOLEAN FloatingSave;
+    BOOLEAN AutomaticSerialization;
+    // padding byte
+    // padding byte
+    BOOLEAN (__fastcall *EvtInterruptIsr)(WDFINTERRUPT , ULONG);
+    void (__fastcall *EvtInterruptDpc)(WDFINTERRUPT , WDFOBJECT);
+    int (__fastcall *EvtInterruptEnable)(WDFINTERRUPT , WDFDEVICE);
+    int (__fastcall *EvtInterruptDisable)(WDFINTERRUPT , WDFDEVICE);
+    void (__fastcall *EvtInterruptWorkItem)(WDFINTERRUPT , WDFOBJECT);
+    PVOID InterruptRaw;
+    PVOID InterruptTranslated;
+    WDFWAITLOCK WaitLock;
+    BOOLEAN PassiveHandling;
+    // padding byte
+    // padding byte
+    // padding byte
+};
+
+enum _WDF_IO_TARGET_OPEN_TYPE : __int32 {
+    WdfIoTargetOpenUndefined         = 0x0,
+    WdfIoTargetOpenUseExistingDevice = 0x1,
+    WdfIoTargetOpenByName            = 0x2,
+    WdfIoTargetOpenReopen            = 0x3,
+};
+
+struct _WDF_IO_TARGET_OPEN_PARAMS {
+  ULONG                             Size;
+  _WDF_IO_TARGET_OPEN_TYPE          Type;
+  NTSTATUS (__fastcall *EvtIoTargetQueryRemove)(WDFIOTARGET);
+  void (__fastcall *EvtIoTargetRemoveCanceled)(WDFIOTARGET);
+  void (__fastcall *EvtIoTargetRemoveComplete)(WDFIOTARGET);
+  _DEVICE_OBJECT                    *TargetDeviceObject;
+  _FILE_OBJECT                      *TargetFileObject;
+  UNICODE_STRING                    TargetDeviceName;
+  ULONG                             DesiredAccess;
+  ULONG                             ShareAccess;
+  ULONG                             FileAttributes;
+  ULONG                             CreateDisposition;
+  ULONG                             CreateOptions;
+  PVOID                             EaBuffer;
+  ULONG                             EaBufferLength;
+  LONGLONG                          *AllocationSize;
+  ULONG                             FileInformation;
+};
+
+enum _WDF_MEMORY_DESCRIPTOR_TYPE : __int32 {
+    WdfMemoryDescriptorTypeInvalid = 0x0,
+    WdfMemoryDescriptorTypeBuffer  = 0x1,
+    WdfMemoryDescriptorTypeMdl     = 0x2,
+    WdfMemoryDescriptorTypeHandle  = 0x3,
+};
+
+struct _WDFMEMORY_OFFSET {
+    size_t BufferOffset;
+    size_t BufferLength;
+};
+
+struct _WDF_MEMORY_DESCRIPTOR {
+  _WDF_MEMORY_DESCRIPTOR_TYPE Type;
+  union {
+    struct {
+      PVOID Buffer;
+      ULONG Length;
+    } BufferType;
+    struct {
+      _MDL  *Mdl;
+      ULONG BufferLength;
+    } MdlType;
+    struct {
+      WDFMEMORY         Memory;
+      _WDFMEMORY_OFFSET *Offsets;
+    } HandleType;
+  } u;
+};
+
+struct _WDF_REQUEST_SEND_OPTIONS {
+  ULONG    Size;
+  ULONG    Flags;
+  LONGLONG Timeout;
+};
+
+enum _WDF_REQUEST_TYPE : __int32 {
+    WdfRequestTypeCreate            = 0x0,
+    WdfRequestTypeCreateNamedPipe   = 0x1,
+    WdfRequestTypeClose             = 0x2,
+    WdfRequestTypeRead              = 0x3,
+    WdfRequestTypeWrite             = 0x4,
+    WdfRequestTypeQueryInformation  = 0x5,
+    WdfRequestTypeSetInformation    = 0x6,
+    WdfRequestTypeQueryEA           = 0x7,
+    WdfRequestTypeSetEA             = 0x8,
+    WdfRequestTypeFlushBuffers      = 0x9,
+    WdfRequestTypeQueryVolumeInformation = 0xA,
+    WdfRequestTypeSetVolumeInformation = 0xB,
+    WdfRequestTypeDirectoryControl  = 0xC,
+    WdfRequestTypeFileSystemControl = 0xD,
+    WdfRequestTypeDeviceControl     = 0xE,
+    WdfRequestTypeDeviceControlInternal = 0xF,
+    WdfRequestTypeShutdown          = 0x10,
+    WdfRequestTypeLockControl       = 0x11,
+    WdfRequestTypeCleanup           = 0x12,
+    WdfRequestTypeCreateMailSlot    = 0x13,
+    WdfRequestTypeQuerySecurity     = 0x14,
+    WdfRequestTypeSetSecurity       = 0x15,
+    WdfRequestTypePower             = 0x16,
+    WdfRequestTypeSystemControl     = 0x17,
+    WdfRequestTypeDeviceChange      = 0x18,
+    WdfRequestTypeQueryQuota        = 0x19,
+    WdfRequestTypeSetQuota          = 0x1A,
+    WdfRequestTypePnp               = 0x1B,
+    WdfRequestTypeOther             = 0x1C,
+    WdfRequestTypeUsb               = 0x40,
+    WdfRequestTypeNoFormat          = 0xFF,
+    WdfRequestTypeMax               = 0x100,
+};
+
+struct _WDF_REQUEST_PARAMETERS {
+  USHORT           Size;
+  UCHAR            MinorFunction;
+  // padding byte
+  _WDF_REQUEST_TYPE Type;
+  union {
+    struct {
+      PVOID                    SecurityContext;
+      ULONG                    Options;
+      USHORT                   FileAttributes;
+      USHORT                   ShareAccess;
+      ULONG                    EaLength;
+    } Create;
+    struct {
+      size_t                  Length;
+      ULONG                   Key;
+      LONGLONG                DeviceOffset;
+    } Read;
+    struct {
+      size_t                  Length;
+      ULONG                   Key;
+      LONGLONG                DeviceOffset;
+    } Write;
+    struct {
+      size_t                   OutputBufferLength;
+      size_t                   InputBufferLength;
+      ULONG                    IoControlCode;
+      PVOID                    Type3InputBuffer;
+    } DeviceIoControl;
+    struct {
+      PVOID                   Arg1;
+      PVOID                   Arg2;
+      ULONG                   IoControlCode;
+      PVOID                   Arg4;
+    } Others;
+  } Parameters;
+};
+
+struct __declspec(align(4)) _WDF_WORKITEM_CONFIG {
+  ULONG            Size;
+  void (__fastcall *EvtWorkItemFunc)(WDFWORKITEM *);
+  BOOLEAN          AutomaticSerialization;
+};
+
+enum _WPP_TRACE_API_SUITE : __int32 {
+    WppTraceDisabledSuite = 0x0,
+    WppTraceWin2K         = 0x1,
+    WppTraceWinXP         = 0x2,
+    WppTraceTraceLH       = 0x3,
+    WppTraceServer08      = 0x4,
+    WppTraceMaxSuite      = 0x5,
+};
+
+enum _TRACE_INFORMATION_CLASS : __int32 {
+    TraceIdClass                   = 0x0,
+    TraceHandleClass               = 0x1,
+    TraceEnableFlagsClass          = 0x2,
+    TraceEnableLevelClass          = 0x3,
+    GlobalLoggerHandleClass        = 0x4,
+    EventLoggerHandleClass         = 0x5,
+    AllLoggerHandlesClass          = 0x6,
+    TraceHandleByNameClass         = 0x7,
+    LoggerEventsLostClass          = 0x8,
+    TraceSessionSettingsClass      = 0x9,
+    LoggerEventsLoggedClass        = 0xA,
+    DiskIoNotifyRoutinesClass      = 0xB,
+    TraceInformationClassReserved1 = 0xC,
+    FltIoNotifyRoutinesClass       = 0xD,
+    TraceInformationClassReserved2 = 0xE,
+    WdfNotifyRoutinesClass         = 0xF,
+    MaxTraceInformationClass       = 0x10,
+};
+
+enum _WDF_DEVICE_IO_TYPE : __int32 {
+    WdfDeviceIoUndefined = 0x0,
+    WdfDeviceIoNeither   = 0x1,
+    WdfDeviceIoBuffered  = 0x2,
+    WdfDeviceIoDirect    = 0x3,
+};
+
+enum _POOL_TYPE : __int32 {
+    NonPagedPool                    = 0x0,
+    NonPagedPoolExecute             = 0x0,
+    PagedPool                       = 0x1,
+    NonPagedPoolMustSucceed         = 0x2,
+    DontUseThisType                 = 0x3,
+    NonPagedPoolCacheAligned        = 0x4,
+    PagedPoolCacheAligned           = 0x5,
+    NonPagedPoolCacheAlignedMustS   = 0x6,
+    MaxPoolType                     = 0x7,
+    NonPagedPoolBase                = 0x0,
+    NonPagedPoolBaseMustSucceed     = 0x2,
+    NonPagedPoolBaseCacheAligned    = 0x4,
+    NonPagedPoolBaseCacheAlignedMustS = 0x6,
+    NonPagedPoolSession             = 0x20,
+    PagedPoolSession                = 0x21,
+    NonPagedPoolMustSucceedSession  = 0x22,
+    DontUseThisTypeSession          = 0x23,
+    NonPagedPoolCacheAlignedSession = 0x24,
+    PagedPoolCacheAlignedSession    = 0x25,
+    NonPagedPoolCacheAlignedMustSSession = 0x26,
+    NonPagedPoolNx                  = 0x200,
+    NonPagedPoolNxCacheAligned      = 0x204,
+    NonPagedPoolSessionNx           = 0x220,
 };
