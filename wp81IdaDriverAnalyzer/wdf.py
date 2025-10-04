@@ -961,7 +961,7 @@ def rename_function_McGenEventRegister():
 	if EtwRegister_address == idc.BADADDR:
 		print("EtwRegister is not imported !")
 		return
-	rename_function(EtwRegister_address, 'int __fastcall EtwRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *CallbackContext), void *CallbackContext, unsigned __int64 *RegHandle)', force=True)
+	rename_function(EtwRegister_address, 'NTSTATUS __fastcall EtwRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *CallbackContext), void *CallbackContext, unsigned __int64 *RegHandle)', force=True)
 	# List comprehension to collect only code xrefs (because we can have multiple Xrefs for the same call)
 	code_xrefs = [
 		xref for xref in idautils.XrefsTo(EtwRegister_address)
@@ -1390,7 +1390,7 @@ def rename_functions_EventWrite():
 	EtwWrite_address = get_imported_function_address('EtwWrite')
 	if EtwWrite_address == idc.BADADDR:
 		return
-	rename_function(EtwWrite_address, 'int __fastcall EtwWrite(unsigned __int64 RegHandle, const _EVENT_DESCRIPTOR *EventDescriptor, const _GUID *ActivityId, unsigned int UserDataCount, unsigned int *UserData)', force=True)
+	rename_function(EtwWrite_address, 'NTSTATUS __fastcall EtwWrite(unsigned __int64 RegHandle, const _EVENT_DESCRIPTOR *EventDescriptor, const _GUID *ActivityId, ULONG UserDataCount, unsigned int *UserData)', force=True)
 	# List comprehension to collect only code xrefs (because we can have multiple Xrefs for the same call)
 	code_xrefs = [
 		xref for xref in idautils.XrefsTo(EtwWrite_address)
@@ -1813,6 +1813,23 @@ def create_object_contextes():
 		lvar_modifier = my_modifier_t(function_name, new_types)
 		ida_hexrays.modify_user_lvars(function.start_ea, lvar_modifier)
 
+def update_type_imported_function():
+	# Note: the followind functions are already updated elsewhere
+	# EtwRegister 
+	# EtwWrite
+	
+	MmGetSystemRoutineAddress_address = idc.get_name_ea_simple('MmGetSystemRoutineAddress')
+	if MmGetSystemRoutineAddress_address != idaapi.BADADDR:
+		rename_function(MmGetSystemRoutineAddress_address, "PVOID __fastcall MmGetSystemRoutineAddress(PUNICODE_STRING SystemRoutineName)", force=True)
+	
+	KeInitializeEvent_address = idc.get_name_ea_simple('KeInitializeEvent')
+	if KeInitializeEvent_address != idaapi.BADADDR:
+		rename_function(KeInitializeEvent_address, "VOID __fastcall KeInitializeEvent(_KEVENT *Event, _EVENT_TYPE Type, BOOLEAN State)", force=True)
+	
+	KeWaitForSingleObject_address = idc.get_name_ea_simple('KeWaitForSingleObject')
+	if KeWaitForSingleObject_address != idaapi.BADADDR:
+		rename_function(KeWaitForSingleObject_address, "NTSTATUS __fastcall KeWaitForSingleObject(PVOID Object, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout);", force=True)
+
 def cast_WDF_functions():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')
 	# Use XrefsTo to get all cross-references to the target address
@@ -1907,6 +1924,8 @@ def rename_functions_and_offsets():
 	
 	WdfVersionBindClass0_address = idc.get_operand_value(FxStubBindClasses_address+0x4a, 0)
 	rename_function(WdfVersionBindClass0_address, 'int WdfVersionBindClass_0()', force=True)
+	
+	update_type_imported_function()
 	
 	action = "Find the function calling 'WdfDriverCreate'"
 	# Usually, this is the 'DriverEntry' function

@@ -868,3 +868,64 @@ struct _DISPATCHER_CONTEXT {
     unsigned __int8 *NonVolatileRegisters;
     unsigned int Reserved;
 };
+
+enum _EVENT_TYPE {
+  NotificationEvent,
+  SynchronizationEvent
+};
+
+enum MY_BOOLEAN : __int8 {
+    FALSE = 0x0,
+    TRUE = 0x1
+};
+
+enum MY_NULL : __int32 {
+    NULL = 0x0
+};
+
+enum _KPROCESSOR_MODE {
+  KernelMode,
+  UserMode,
+  MaximumMode
+};
+
+enum _KWAIT_REASON {
+  Executive,
+  FreePage,
+  PageIn,
+  PoolAllocation,
+  DelayExecution,
+  Suspended,
+  UserRequest,
+  WrExecutive,
+  WrFreePage,
+  WrPageIn,
+  WrPoolAllocation,
+  WrDelayExecution,
+  WrSuspended,
+  WrUserRequest,
+  WrEventPair,
+  WrQueue,
+  WrLpcReceive,
+  WrLpcReply,
+  WrVirtualMemory,
+  WrPageOut,
+  WrRendezvous,
+  WrKeyedEvent,
+  WrTerminated,
+  WrProcessInSwap,
+  WrCpuRateControl,
+  WrCalloutStack,
+  WrKernel,
+  WrResource,
+  WrPushLock,
+  WrMutex,
+  WrQuantumEnd,
+  WrDispatchInt,
+  WrPreempted,
+  WrYieldExecution,
+  WrFastMutex,
+  WrGuardedMutex,
+  WrRundown,
+  MaximumWaitReason
+};
