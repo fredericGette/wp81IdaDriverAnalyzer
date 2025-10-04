@@ -8,6 +8,7 @@ typedef unsigned int size_t;
 typedef unsigned char BYTE;
 typedef unsigned int ULONG;
 typedef long LONG;
+typedef unsigned long DWORD;
 typedef unsigned __int64 ULONGLONG;
 typedef __int64 LONGLONG;
 typedef unsigned short USHORT;
@@ -793,4 +794,77 @@ enum _POOL_TYPE : __int32 {
     NonPagedPoolNx                  = 0x200,
     NonPagedPoolNxCacheAligned      = 0x204,
     NonPagedPoolSessionNx           = 0x220,
+};
+
+struct _EXCEPTION_RECORD {
+  DWORD                    ExceptionCode;
+  DWORD                    ExceptionFlags;
+  struct _EXCEPTION_RECORD *ExceptionRecord;
+  PVOID                    ExceptionAddress;
+  DWORD                    NumberParameters;
+  ULONG                *ExceptionInformation[15];
+};
+
+struct _NEON128 {
+    unsigned __int64 Low;
+    __int64 High;
+};
+
+struct _CONTEXT {
+    unsigned int ContextFlags;
+    unsigned int R0;
+    unsigned int R1;
+    unsigned int R2;
+    unsigned int R3;
+    unsigned int R4;
+    unsigned int R5;
+    unsigned int R6;
+    unsigned int R7;
+    unsigned int R8;
+    unsigned int R9;
+    unsigned int R10;
+    unsigned int R11;
+    unsigned int R12;
+    unsigned int Sp;
+    unsigned int Lr;
+    unsigned int Pc;
+    unsigned int Cpsr;
+    unsigned int Fpscr;
+    unsigned int Padding;
+    union {
+        _NEON128 Q[16];
+        unsigned __int64 D[32];
+        unsigned int S[32];
+    } ___u20;
+    unsigned int Bvr[8];
+    unsigned int Bcr[8];
+    unsigned int Wvr[1];
+    unsigned int Wcr[1];
+    unsigned int Padding2[2];
+};
+
+enum _EXCEPTION_DISPOSITION : __int32 {
+    ExceptionContinueExecution = 0x0,
+    ExceptionContinueSearch    = 0x1,
+    ExceptionNestedException   = 0x2,
+    ExceptionCollidedUnwind    = 0x3,
+};
+
+struct _DISPATCHER_CONTEXT {
+    unsigned int ControlPc;
+    unsigned int ImageBase;
+    PVOID FunctionEntry;
+    unsigned int EstablisherFrame;
+    unsigned int TargetPc;
+    _CONTEXT *ContextRecord;
+    _EXCEPTION_DISPOSITION (__fastcall *LanguageHandler)(_EXCEPTION_RECORD *, void *, _CONTEXT *, void *);
+    void *HandlerData;
+    PVOID HistoryTable;
+    unsigned int ScopeIndex;
+    unsigned __int8 ControlPcIsUnwound;
+    // padding byte
+    // padding byte
+    // padding byte
+    unsigned __int8 *NonVolatileRegisters;
+    unsigned int Reserved;
 };
