@@ -222,7 +222,7 @@ kmdf1_11 = [
 	("WdfIoTargetGetDevice",None),
 	("WdfIoTargetQueryTargetProperty",None),
 	("WdfIoTargetAllocAndQueryTargetProperty",None),
-	("WdfIoTargetQueryForInterface","typedef NTSTATUS __fastcall WDF_IOTARGET_QUERY_FOR_INTERFACE(int, WDFIOTARGET IoTarget, _GUID *InterfaceType, INTERFACE *Interface, USHORT Size, USHORT Version, VOID *InterfaceSpecificData);"),
+	("WdfIoTargetQueryForInterface","typedef NTSTATUS __fastcall WDF_IOTARGET_QUERY_FOR_INTERFACE(int, WDFIOTARGET IoTarget, _GUID *InterfaceType, _INTERFACE *Interface, USHORT Size, USHORT Version, VOID *InterfaceSpecificData);"),
 	("WdfIoTargetWdmGetTargetDeviceObject",None),
 	("WdfIoTargetWdmGetTargetPhysicalDevice",None),
 	("WdfIoTargetWdmGetTargetFileObject",None),
@@ -1384,7 +1384,7 @@ def rename_function_WppTraceCallback():
 	if asg_expr:
 		if asg_expr.y.op == idaapi.cot_cast: # there is a cast to int
 			if asg_expr.y.x.op == idaapi.cot_obj:
-				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall WppTraceCallback(unsigned __int8 MinorFunction, void *DataPath, unsigned int BufferLength, void *Buffer, void *Context, unsigned int *Size)')
+				rename_function(asg_expr.y.x.obj_ea, 'int __fastcall WppTraceCallback(unsigned __int8 MinorFunction, void *DataPath, unsigned int BufferLength, void *Buffer, void *Context, unsigned int *Size)', force=True)
 
 def rename_functions_EventWrite():
 	EtwWrite_address = get_imported_function_address('EtwWrite')
@@ -1828,7 +1828,35 @@ def update_type_imported_function():
 	
 	KeWaitForSingleObject_address = idc.get_name_ea_simple('KeWaitForSingleObject')
 	if KeWaitForSingleObject_address != idaapi.BADADDR:
-		rename_function(KeWaitForSingleObject_address, "NTSTATUS __fastcall KeWaitForSingleObject(PVOID Object, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout);", force=True)
+		rename_function(KeWaitForSingleObject_address, "NTSTATUS __fastcall KeWaitForSingleObject(PVOID Object, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout)", force=True)
+	
+	KeBugCheckEx_address = idc.get_name_ea_simple('KeBugCheckEx')
+	if KeBugCheckEx_address != idaapi.BADADDR:
+		rename_function(KeBugCheckEx_address, "VOID __fastcall KeBugCheckEx(ULONG BugCheckCode,ULONG *BugCheckParameter1, ULONG *BugCheckParameter2, ULONG *BugCheckParameter3, ULONG *BugCheckParameter4)", force=True)
+	
+	RtlCompareMemory_address = idc.get_name_ea_simple('RtlCompareMemory')
+	if RtlCompareMemory_address != idaapi.BADADDR:
+		rename_function(RtlCompareMemory_address, "size_t __fastcall RtlCompareMemory(VOID *Source1, VOID *Source2, size_t Length)", force=True)
+	
+	ExAllocatePoolWithTag_address = idc.get_name_ea_simple('ExAllocatePoolWithTag')
+	if ExAllocatePoolWithTag_address != idaapi.BADADDR:
+		rename_function(ExAllocatePoolWithTag_address, "PVOID __fastcall ExAllocatePoolWithTag(_POOL_TYPE PoolType, size_t NumberOfBytes, ULONG Tag)", force=True)
+	
+	IoRegisterPlugPlayNotification_address = idc.get_name_ea_simple('IoRegisterPlugPlayNotification')
+	if IoRegisterPlugPlayNotification_address != idaapi.BADADDR:
+		rename_function(IoRegisterPlugPlayNotification_address, "NTSTATUS __fastcall IoRegisterPlugPlayNotification(_IO_NOTIFICATION_EVENT_CATEGORY EventCategory, ULONG EventCategoryFlags, PVOID EventCategoryData, _DRIVER_OBJECT *DriverObject, DRIVER_NOTIFICATION_CALLBACK_ROUTINE *CallbackRoutine, PVOID Context, PVOID *NotificationEntry)", force=True)
+	
+	KeSetEvent_address = idc.get_name_ea_simple('KeSetEvent')
+	if KeSetEvent_address != idaapi.BADADDR:
+		rename_function(KeSetEvent_address, "LONG __fastcall KeSetEvent( _KEVENT *Event, LONG Increment, BOOLEAN Wait)", force=True)
+	
+	ExFreePool_address = idc.get_name_ea_simple('ExFreePool')
+	if ExFreePool_address != idaapi.BADADDR:
+		rename_function(ExFreePool_address, "VOID __fastcall ExFreePool( PVOID P)", force=True)
+	
+	MmMapIoSpace_address = idc.get_name_ea_simple('MmMapIoSpace')
+	if MmMapIoSpace_address != idaapi.BADADDR:
+		rename_function(MmMapIoSpace_address, "PVOID __fastcall MmMapIoSpace( LONGLONG PhysicalAddress, size_t NumberOfBytes, _MEMORY_CACHING_TYPE CacheType)", force=True)
 
 def cast_WDF_functions():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')

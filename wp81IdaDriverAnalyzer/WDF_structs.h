@@ -929,3 +929,24 @@ enum _KWAIT_REASON {
   WrRundown,
   MaximumWaitReason
 };
+
+enum _IO_NOTIFICATION_EVENT_CATEGORY {
+  EventCategoryReserved,
+  EventCategoryHardwareProfileChange,
+  EventCategoryDeviceInterfaceChange,
+  EventCategoryTargetDeviceChange,
+  EventCategoryKernelSoftRestart
+};
+
+typedef NTSTATUS __fastcall DRIVER_NOTIFICATION_CALLBACK_ROUTINE(PVOID NotificationStructure, PVOID Context);
+
+enum _MEMORY_CACHING_TYPE {
+  MmNonCached,
+  MmCached,
+  MmWriteCombined,
+  MmHardwareCoherentCached,
+  MmNonCachedUnordered,
+  MmUSWCCached,
+  MmMaximumCacheType,
+  MmNotMapped
+};
