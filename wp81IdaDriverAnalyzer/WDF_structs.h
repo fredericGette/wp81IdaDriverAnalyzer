@@ -37,6 +37,8 @@ typedef HANDLE WDFREQUEST;
 typedef HANDLE WDFSPINLOCK;
 typedef HANDLE WDFWAITLOCK;
 typedef HANDLE WDFWORKITEM;
+typedef ULONG KSPIN_LOCK;
+typedef UCHAR KIRQL;
 
 typedef struct _UNICODE_STRING {
   USHORT Length;

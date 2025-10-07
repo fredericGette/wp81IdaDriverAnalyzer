@@ -1817,6 +1817,7 @@ def update_type_imported_function():
 	# Note: the followind functions are already updated elsewhere
 	# EtwRegister 
 	# EtwWrite
+	# EtwUnregister
 	
 	MmGetSystemRoutineAddress_address = idc.get_name_ea_simple('MmGetSystemRoutineAddress')
 	if MmGetSystemRoutineAddress_address != idaapi.BADADDR:
@@ -1857,6 +1858,54 @@ def update_type_imported_function():
 	MmMapIoSpace_address = idc.get_name_ea_simple('MmMapIoSpace')
 	if MmMapIoSpace_address != idaapi.BADADDR:
 		rename_function(MmMapIoSpace_address, "PVOID __fastcall MmMapIoSpace( LONGLONG PhysicalAddress, size_t NumberOfBytes, _MEMORY_CACHING_TYPE CacheType)", force=True)
+	
+	KeInitializeSpinLock_address = idc.get_name_ea_simple('KeInitializeSpinLock')
+	if KeInitializeSpinLock_address != idaapi.BADADDR:
+		rename_function(KeInitializeSpinLock_address, "VOID __fastcall KeInitializeSpinLock( KSPIN_LOCK *SpinLock)", force=True)
+	
+	KeAcquireSpinLockRaiseToDpc_address = idc.get_name_ea_simple('KeAcquireSpinLockRaiseToDpc')
+	if KeAcquireSpinLockRaiseToDpc_address != idaapi.BADADDR:
+		rename_function(KeAcquireSpinLockRaiseToDpc_address, "KIRQL __fastcall KeAcquireSpinLockRaiseToDpc(KSPIN_LOCK *SpinLock)", force=True)
+	
+	DbgPrintEx_address = idc.get_name_ea_simple('DbgPrintEx')
+	if DbgPrintEx_address != idaapi.BADADDR:
+		rename_function(DbgPrintEx_address, "ULONG __fastcall DbgPrintEx(ULONG ComponentId, ULONG Level, CHAR *Format, ... )", force=True)
+	
+	RtlCopyUnicodeString_address = idc.get_name_ea_simple('RtlCopyUnicodeString')
+	if RtlCopyUnicodeString_address != idaapi.BADADDR:
+		rename_function(RtlCopyUnicodeString_address, "VOID __fastcall RtlCopyUnicodeString( PUNICODE_STRING DestinationString, PUNICODE_STRING SourceString)", force=True)
+	
+	ExFreePoolWithTag_address = idc.get_name_ea_simple('ExFreePoolWithTag')
+	if ExFreePoolWithTag_address != idaapi.BADADDR:
+		rename_function(ExFreePoolWithTag_address, "VOID __fastcall ExFreePoolWithTag( PVOID P, ULONG Tag)", force=True)
+	
+	RtlInitUnicodeString_address = idc.get_name_ea_simple('RtlInitUnicodeString')
+	if RtlInitUnicodeString_address != idaapi.BADADDR:
+		rename_function(RtlInitUnicodeString_address, "VOID __fastcall RtlInitUnicodeString( PUNICODE_STRING DestinationString, PWSTR SourceString)", force=True)
+	
+	KeClearEvent_address = idc.get_name_ea_simple('KeClearEvent')
+	if KeClearEvent_address != idaapi.BADADDR:
+		rename_function(KeClearEvent_address, "VOID __fastcall KeClearEvent( _KEVENT *Event)", force=True)
+	
+	KeReleaseSpinLock_address = idc.get_name_ea_simple('KeReleaseSpinLock')
+	if KeReleaseSpinLock_address != idaapi.BADADDR:
+		rename_function(KeReleaseSpinLock_address, "VOID __fastcall KeReleaseSpinLock(KSPIN_LOCK *SpinLock, KIRQL NewIrql)", force=True)
+	
+	IoWMIRegistrationControl_address = idc.get_name_ea_simple('IoWMIRegistrationControl')
+	if IoWMIRegistrationControl_address != idaapi.BADADDR:
+		rename_function(IoWMIRegistrationControl_address, "NTSTATUS __fastcall IoWMIRegistrationControl( _DEVICE_OBJECT *DeviceObject, ULONG Action)", force=True)
+	
+	__imp_strlen_address = idc.get_name_ea_simple('__imp_strlen')
+	if __imp_strlen_address != idaapi.BADADDR:
+		rename_function(__imp_strlen_address, "size_t __fastcall __imp_strlen( char *str)", force=True)
+	
+	__imp_strncmp_address = idc.get_name_ea_simple('__imp_strncmp')
+	if __imp_strncmp_address != idaapi.BADADDR:
+		rename_function(__imp_strncmp_address, "int __fastcall __imp_strncmp( char *string1, char *string2, size_t count)", force=True)
+	
+	__imp_strcmp_address = idc.get_name_ea_simple('__imp_strcmp')
+	if __imp_strcmp_address != idaapi.BADADDR:
+		rename_function(__imp_strcmp_address, "int __fastcall __imp_strcmp( char *string1, char *string2)", force=True)
 
 def cast_WDF_functions():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')
