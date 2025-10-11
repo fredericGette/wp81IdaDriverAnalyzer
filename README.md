@@ -1,6 +1,9 @@
 # wp81IdaDriverAnalyzer
 
-This is a highly specialized IDA Pro plugin designed to assist in the reverse engineering of Windows Driver Foundation (WDF) drivers specific to the Windows Phone 8.1 operating system running on Nokia Lumia 520.
+This is a highly specialized IDA Pro plugin designed to assist in the reverse engineering of Windows Driver Foundation (WDF) drivers specific to the Windows Phone 8.1 operating system running on Nokia Lumia 520.  
+
+Inspired by [DriverBuddyReloaded](https://github.com/VoidSec/DriverBuddyReloaded).  
+Many thanks to [HRDevHelper](https://github.com/patois/HRDevHelper) which helps a lot with IDA's **ctree**.  
 
 ## Features
 
