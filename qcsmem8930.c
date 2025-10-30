@@ -271,22 +271,22 @@ NTSTATUS __fastcall EvtWdfDevicePrepareHardware(
         WDFCMRESLIST ResourcesTranslated)
 {
   unsigned __int64 v4; // r0
-  int v6; // r7
-  unsigned __int8 *v7; // r0
-  unsigned __int8 *v8; // r5
+  int index; // r7
+  CmResourceTypeMemory_struct *v7; // r0
+  CmResourceTypeMemory_struct *v8; // r5
   unsigned __int64 v9; // r0
-  size_t v10; // r2
+  ULONG Length; // r2
   LONGLONG v11; // r0
   unsigned __int64 v12; // r0
   unsigned __int64 v13; // r0
-  LONGLONG v14; // r0
+  LONGLONG Start; // r0
   unsigned __int64 v15; // r0
   _DWORD *v16; // r4
   int v17; // r3
   unsigned __int64 v18; // r0
-  PVOID v19; // r0
+  PVOID additionalMemoryResourceVirtualStart; // r0
   int v20; // r2
-  int v21; // r3
+  int additionalMemoryResourcePhysicalStart; // r3
   unsigned __int64 v22; // r0
   void *v23; // r0
   _DWORD *v24; // r2
@@ -295,35 +295,37 @@ NTSTATUS __fastcall EvtWdfDevicePrepareHardware(
   unsigned __int64 v27; // r0
   unsigned __int64 v28; // r0
   unsigned __int64 v29; // r0
-  int v30; // r3
+  int Type; // r3
   unsigned __int64 v31; // r0
 
   if ( (unsigned int)((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
                        WdfDriverGlobals,
                        ResourcesTranslated) > 2 )
   {
-    dword_405AE4 = ((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
-                     WdfDriverGlobals,
-                     ResourcesTranslated)
-                 - 2;
-    dword_405AF4 = (int)ExAllocatePoolWithTag(NonPagedPoolNx, 8 * dword_405AE4, '1esq');
-    if ( !dword_405AF4 )
+    nbAdditionalMemoryResources = ((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
+                                    WdfDriverGlobals,
+                                    ResourcesTranslated)
+                                - 2;
+    arrayAdditionalMemoryResources = (int)ExAllocatePoolWithTag(NonPagedPoolNx, 8 * nbAdditionalMemoryResources, '1esq');// 
+                                                // 1st DWORD: physical start address
+                                                // 2nd DWORD: virtual start address
+    if ( !arrayAdditionalMemoryResources )
     {
       if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 2u )
       {
         LODWORD(v4) = *((_DWORD *)off_405130 + 4);
         HIDWORD(v4) = *((_DWORD *)off_405130 + 5);
-        DoTraceMessage_04(v4, 0x10u, &WPP_Traceguids_01, dword_405AE4);
+        DoTraceMessage_04(v4, 0x10u, &WPP_Traceguids_01, nbAdditionalMemoryResources);
       }
       return STATUS_INSUFFICIENT_RESOURCES;
     }
   }
-  v6 = 0;
+  index = 0;
   if ( !((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
           WdfDriverGlobals,
           ResourcesTranslated) )
   {
-LABEL_35:
+INIT_SMEM:
     if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 4u )
     {
       LODWORD(v22) = *((_DWORD *)off_405130 + 4);
@@ -331,174 +333,161 @@ LABEL_35:
       DoTraceMessage_01(v22, 0x1Au, &WPP_Traceguids_01);
     }
     smem_init();
-    dword_40516C = (int)smem_alloc(dword_40515C, 20 * dword_405158);
-    v23 = smem_alloc(dword_405160, 4);
-    dword_405170 = (int)v23;
-    if ( dword_405164 != SMEM_VOICE )
+    array_smem_log_events = (int)smem_alloc(mem_type_SMEM_SMEM_LOG_EVENTS, 20 * smem_alloc_size_2000);
+    v23 = smem_alloc(mem_type_SMEM_SMEM_LOG_IDX, 4);
+    index_smem_log_event = (int)v23;
+    if ( mem_type_SMEM_SMEM_LOG_MPROC_WRAP != SMEM_VOICE )// SMEM_VOICE=426
     {
-      dword_405174 = (int)smem_alloc(dword_405164, 4);
-      v23 = (void *)dword_405170;
+      smem_log_mproc_wrap = (int)smem_alloc(mem_type_SMEM_SMEM_LOG_MPROC_WRAP, 4);// ? so we can configure the shared memory as readable and writeable ?
+      v23 = (void *)index_smem_log_event;
     }
-    if ( !dword_40516C || !v23 )
+    if ( !array_smem_log_events || !v23 )
     {
       v24 = off_405130;
       if ( (*((_DWORD *)off_405130 + 8) & 2) == 0 || !*((_BYTE *)off_405130 + 29) )
-        goto LABEL_46;
+        goto END_OK;
       LODWORD(v25) = *((_DWORD *)off_405130 + 4);
       HIDWORD(v25) = *((_DWORD *)off_405130 + 5);
       DoTraceMessage_01(v25, 0xAu, &stru_404158);
     }
     v24 = off_405130;
-LABEL_46:
+END_OK:
     if ( (v24[8] & 2) != 0 && *((unsigned __int8 *)v24 + 29) >= 4u )
     {
       LODWORD(v26) = v24[4];
       HIDWORD(v26) = v24[5];
-      DoTraceMessage_03(v26, (int)v24, dword_405AE0, dword_405AE0, dword_405AF0);
+      DoTraceMessage_03(
+        v26,
+        (int)v24,
+        firstMemoryResourceVirtualStart,
+        firstMemoryResourceVirtualStart,
+        firstMemoryResourceLength);
     }
     return 0;
   }
-  while ( 1 )
+  while ( 1 )                                   // Resource Processing Loop
   {
-    v7 = (unsigned __int8 *)((int (__fastcall *)(int, WDFCMRESLIST, int))WdfFunctions.WdfCmResourceListGetDescriptor)(
-                              WdfDriverGlobals,
-                              ResourcesTranslated,
-                              v6);
+    v7 = (CmResourceTypeMemory_struct *)((int (__fastcall *)(int, WDFCMRESLIST, int))WdfFunctions.WdfCmResourceListGetDescriptor)(
+                                          WdfDriverGlobals,
+                                          ResourcesTranslated,
+                                          index);
     v8 = v7;
     if ( !v7 )                                  // CmResourceTypeNull
       return STATUS_DEVICE_CONFIGURATION_ERROR;
-    if ( *v7 != 3 )                             // CmResourceTypeMemory
+    if ( v7->Type != 3 )                        // CmResourceTypeMemory
       break;
-    if ( v6 )
+    if ( index )
     {
-      if ( v6 == 1 )
+      if ( index == 1 )                         // Second Memory Resource
       {
         if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 4u )
         {
           LODWORD(v13) = *((_DWORD *)off_405130 + 4);
           HIDWORD(v13) = *((_DWORD *)off_405130 + 5);
-          DoTraceMessage_07(
-            v13,
-            0x13u,
-            *((_DWORD *)v8 + 2),
-            *((_DWORD *)v8 + 1),
-            *((_DWORD *)v8 + 2),
-            *((_DWORD *)v8 + 3));
+          DoTraceMessage_07(v13, 0x13u, HIDWORD(v8->Start), LODWORD(v8->Start), HIDWORD(v8->Start), v8->Length);
         }
-        v14 = *(_QWORD *)(v8 + 4);              // v8+4:u.Memory.Start
-        dword_405AE8 = *((_DWORD *)v8 + 3);
-        dword_405B50 = (int)MmMapIoSpace(v14, dword_405AE8, MmNonCached);
-        if ( !dword_405B50 )
+        Start = v8->Start;
+        secondMemoryResourceLength = v8->Length;
+        secondMemoryResourceVirtualStart = (int)MmMapIoSpace(Start, secondMemoryResourceLength, MmNonCached);
+        if ( !secondMemoryResourceVirtualStart )
         {
           if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 2u )
           {
             LODWORD(v27) = *((_DWORD *)off_405130 + 4);
             HIDWORD(v27) = *((_DWORD *)off_405130 + 5);
-            DoTraceMessage_07(
-              v27,
-              0x14u,
-              *((_DWORD *)v8 + 2),
-              *((_DWORD *)v8 + 1),
-              *((_DWORD *)v8 + 2),
-              *((_DWORD *)v8 + 3));
+            DoTraceMessage_07(v27, 0x14u, HIDWORD(v8->Start), LODWORD(v8->Start), HIDWORD(v8->Start), v8->Length);
             return STATUS_DEVICE_CONFIGURATION_ERROR;
           }
           return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
-        if ( (unsigned int)dword_405AE8 < 32 )
+        if ( (unsigned int)secondMemoryResourceLength < 32 )
         {
           if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 2u )
           {
             LODWORD(v15) = *((_DWORD *)off_405130 + 4);
             HIDWORD(v15) = *((_DWORD *)off_405130 + 5);
-            DoTraceMessage_05(v15, 0x15u, &WPP_Traceguids_01, 8, (unsigned int)dword_405AE8 >> 2);
+            DoTraceMessage_05(v15, 0x15u, &WPP_Traceguids_01, 8, (unsigned int)secondMemoryResourceLength >> 2);
             return STATUS_DEVICE_CONFIGURATION_ERROR;
           }
           return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
       }
-      else
+      else                                      // additional memory resource
       {
         v16 = off_405130;
         if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 4u )
         {
-          v17 = *((_DWORD *)v7 + 1);
+          v17 = v7->Start;
           LODWORD(v18) = *((_DWORD *)off_405130 + 4);
           HIDWORD(v18) = *((_DWORD *)off_405130 + 5);
-          DoTraceMessage_06(v18, 0x16u, v17, v6 - 2);
+          DoTraceMessage_06(v18, 0x16u, v17, index - 2);
           v16 = off_405130;
         }
-        if ( *((_DWORD *)v8 + 3) != 4 )
+        if ( v8->Length != 4 )
         {
           if ( (v16[8] & 2) != 0 && *((unsigned __int8 *)v16 + 29) >= 4u )
           {
             LODWORD(v29) = v16[4];
             HIDWORD(v29) = v16[5];
-            DoTraceMessage_05(v29, 0x17u, &WPP_Traceguids_01, v6 - 2, *((_DWORD *)v8 + 3));
+            DoTraceMessage_05(v29, 0x17u, &WPP_Traceguids_01, index - 2, v8->Length);
             return STATUS_DEVICE_CONFIGURATION_ERROR;
           }
           return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
-        v19 = MmMapIoSpace(*(_QWORD *)(v8 + 4), 4u, MmNonCached);// v8+4:u.Memory.Start
-        if ( !v19 )
+        additionalMemoryResourceVirtualStart = MmMapIoSpace(v8->Start, 4u, MmNonCached);
+        if ( !additionalMemoryResourceVirtualStart )
         {
           if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 4u )
           {
             LODWORD(v28) = *((_DWORD *)off_405130 + 4);
             HIDWORD(v28) = *((_DWORD *)off_405130 + 5);
-            DoTraceMessage_06(v28, 0x18u, v6 - 2, v6 - 2);
+            DoTraceMessage_06(v28, 0x18u, index - 2, index - 2);
             return STATUS_DEVICE_CONFIGURATION_ERROR;
           }
           return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
-        v20 = dword_405AF4 + 8 * v6;
-        v21 = *((_DWORD *)v8 + 1);
-        *(_DWORD *)(v20 - 12) = v19;
-        *(_DWORD *)(v20 - 16) = v21;
+        v20 = arrayAdditionalMemoryResources + 8 * index;// index >=2
+        additionalMemoryResourcePhysicalStart = v8->Start;
+        *(_DWORD *)(v20 - 12) = additionalMemoryResourceVirtualStart;// arrayAdditionalMemoryResources + 4 + 8 * (index-2)
+        *(_DWORD *)(v20 - 16) = additionalMemoryResourcePhysicalStart;// arrayAdditionalMemoryResources + 8 * (index-2)
       }
     }
-    else
+    else                                        // First Memory Resource
     {
       if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 4u )
       {
         LODWORD(v9) = *((_DWORD *)off_405130 + 4);
         HIDWORD(v9) = *((_DWORD *)off_405130 + 5);
-        DoTraceMessage_07(v9, 0x11u, *((_DWORD *)v8 + 2), *((_DWORD *)v8 + 1), *((_DWORD *)v8 + 2), *((_DWORD *)v8 + 3));
+        DoTraceMessage_07(v9, 0x11u, HIDWORD(v8->Start), LODWORD(v8->Start), HIDWORD(v8->Start), v8->Length);
       }
-      v10 = *((_DWORD *)v8 + 3);
-      HIDWORD(v11) = *((_DWORD *)v8 + 2);
-      dword_405AEC = *((_DWORD *)v8 + 1);
-      LODWORD(v11) = dword_405AEC;
-      dword_405AF0 = v10;
-      dword_405AE0 = (int)MmMapIoSpace(v11, v10, MmWriteCombined);
-      if ( !dword_405AE0 )
+      Length = v8->Length;
+      HIDWORD(v11) = HIDWORD(v8->Start);
+      firstMemoryResourcePhysicalStart = v8->Start;
+      LODWORD(v11) = firstMemoryResourcePhysicalStart;
+      firstMemoryResourceLength = Length;
+      firstMemoryResourceVirtualStart = (int)MmMapIoSpace(v11, Length, MmWriteCombined);
+      if ( !firstMemoryResourceVirtualStart )
       {
         if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((unsigned __int8 *)off_405130 + 29) >= 2u )
         {
           LODWORD(v12) = *((_DWORD *)off_405130 + 4);
           HIDWORD(v12) = *((_DWORD *)off_405130 + 5);
-          DoTraceMessage_07(
-            v12,
-            0x12u,
-            *((_DWORD *)v8 + 2),
-            *((_DWORD *)v8 + 1),
-            *((_DWORD *)v8 + 2),
-            *((_DWORD *)v8 + 3));
+          DoTraceMessage_07(v12, 0x12u, HIDWORD(v8->Start), LODWORD(v8->Start), HIDWORD(v8->Start), v8->Length);
         }
         return STATUS_DEVICE_CONFIGURATION_ERROR;
       }
     }
-    if ( ++v6 >= (unsigned int)((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
-                                 WdfDriverGlobals,
-                                 ResourcesTranslated) )
-      goto LABEL_35;
+    if ( ++index >= (unsigned int)((int (__fastcall *)(int, WDFCMRESLIST))WdfFunctions.WdfCmResourceListGetCount)(
+                                    WdfDriverGlobals,
+                                    ResourcesTranslated) )
+      goto INIT_SMEM;
   }
   if ( (*((_DWORD *)off_405130 + 8) & 2) == 0 || *((unsigned __int8 *)off_405130 + 29) < 2u )
     return STATUS_DEVICE_CONFIGURATION_ERROR;
-  v30 = *v7;
+  Type = v7->Type;
   LODWORD(v31) = *((_DWORD *)off_405130 + 4);
   HIDWORD(v31) = *((_DWORD *)off_405130 + 5);
-  DoTraceMessage_02(v31, 0x19u, v30, *v8);
+  DoTraceMessage_02(v31, 0x19u, Type, v8->Type);
   return STATUS_DEVICE_CONFIGURATION_ERROR;
 }
 
@@ -516,28 +505,28 @@ NTSTATUS __fastcall EvtWdfDeviceReleaseHardware(WDFDEVICE Device, WDFCMRESLIST R
     HIDWORD(v2) = *((_DWORD *)off_405130 + 5);
     DoTraceMessage_01(v2, 0x1Cu, &WPP_Traceguids_01);
   }
-  if ( dword_405AE0 && dword_405AF0 )
+  if ( firstMemoryResourceVirtualStart && firstMemoryResourceLength )
   {
     ((void (*)(void))MmUnmapIoSpace)();
-    dword_405AE0 = 0;
-    dword_405AF0 = 0;
+    firstMemoryResourceVirtualStart = 0;
+    firstMemoryResourceLength = 0;
   }
-  if ( dword_405B50 && dword_405AE8 )
+  if ( secondMemoryResourceVirtualStart && secondMemoryResourceLength )
   {
     ((void (*)(void))MmUnmapIoSpace)();
-    dword_405B50 = 0;
-    dword_405AE8 = 0;
+    secondMemoryResourceVirtualStart = 0;
+    secondMemoryResourceLength = 0;
   }
-  if ( !dword_405AE4 )
+  if ( !nbAdditionalMemoryResources )
     return 0;
-  v3 = (_DWORD *)dword_405AF4;
-  if ( dword_405AF4 )
+  v3 = (_DWORD *)arrayAdditionalMemoryResources;
+  if ( arrayAdditionalMemoryResources )
   {
-    for ( i = 0; i < dword_405AE4; v3 = (_DWORD *)dword_405AF4 )
+    for ( i = 0; i < nbAdditionalMemoryResources; v3 = (_DWORD *)arrayAdditionalMemoryResources )
       MmUnmapIoSpace(v3[2 * i++ + 1], 4);
     ExFreePoolWithTag(v3, 0);
-    dword_405AF4 = 0;
-    dword_405AE4 = 0;
+    arrayAdditionalMemoryResources = 0;
+    nbAdditionalMemoryResources = 0;
   }
   return 0;
 }
@@ -678,23 +667,23 @@ LABEL_33:
   }
   v13 = -1073741275;
   v14 = 0;
-  if ( dword_405AE4 > 0 )
+  if ( nbAdditionalMemoryResources > 0 )
   {
-    v15 = (int *)dword_405AF4;
+    v15 = (int *)arrayAdditionalMemoryResources;
     while ( 1 )
     {
       v16 = *v15;
       v15 += 2;
       if ( *v20 == v16 )
         break;
-      if ( ++v14 >= dword_405AE4 )
+      if ( ++v14 >= nbAdditionalMemoryResources )
       {
         WdfFunctions.WdfRequestCompleteWithInformation(WdfDriverGlobals, Request, -1073741275, (ULONG *)8);
         return;
       }
     }
     v13 = 0;
-    *(_DWORD *)(v21 + 4) = *(_DWORD *)(dword_405AF4 + 8 * v14 + 4);
+    *(_DWORD *)(v21 + 4) = *(_DWORD *)(arrayAdditionalMemoryResources + 8 * v14 + 4);
   }
   WdfFunctions.WdfRequestCompleteWithInformation(WdfDriverGlobals, Request, v13, (ULONG *)8);
 }
@@ -727,15 +716,15 @@ int sub_401D3C()
   int result; // r0
   unsigned __int64 v1; // r0
 
-  result = dword_405AF0;
-  if ( !dword_405AF0 && (*((_DWORD *)off_405130 + 8) & 2) != 0 )
+  result = firstMemoryResourceLength;
+  if ( !firstMemoryResourceLength && (*((_DWORD *)off_405130 + 8) & 2) != 0 )
   {
     if ( *((_BYTE *)off_405130 + 29) )
     {
       LODWORD(v1) = *((_DWORD *)off_405130 + 4);
       HIDWORD(v1) = *((_DWORD *)off_405130 + 5);
       DoTraceMessage_01(v1, 0x26u, &WPP_Traceguids_01);
-      return dword_405AF0;
+      return firstMemoryResourceLength;
     }
   }
   return result;
@@ -748,8 +737,8 @@ int sub_401D8C()
 {
   unsigned __int64 v0; // r0
 
-  if ( dword_405AF0 )
-    return dword_405AEC;
+  if ( firstMemoryResourceLength )
+    return firstMemoryResourcePhysicalStart;
   if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 )
   {
     if ( *((_BYTE *)off_405130 + 29) )
@@ -759,7 +748,7 @@ int sub_401D8C()
       DoTraceMessage_01(v0, 0x27u, &WPP_Traceguids_01);
     }
   }
-  return dword_405AEC;
+  return firstMemoryResourcePhysicalStart;
 }
 
 
@@ -782,18 +771,24 @@ int DoTraceMessage_08(unsigned __int64 a1, int a2, int a3, ...)
 }
 
 
-// Function: smem_alloc_equivalent
-int __fastcall sub_401E2C(smem_mem_type smem_type, int a2)
+// Function: smem_legacy_alloc_static
+// DESCRIPTION   Request a pointer to a static buffer in shared memory.  This function is designed to be callable at all times, and should never ERR_FATAL.
+// 
+// ARGUMENTS     smem_type     Type of memory to get a pointer for.  This function will only service static SMEM buffers.
+//               buf_size      Size of the buffer requested.  If the incorrect size is provided, this request will fail.
+// 
+// https://github.com/David112x/android-firmware-qti-sdm660/blob/b5e5bb9ed6c92442fd502b3e726d7c8024dc0763/boot_images/QcomPkg/Library/SmemLib/src/smem_legacy.c#L302C14-L302C38
+int __fastcall smem_legacy_alloc_static(smem_mem_type smem_type, ULONG size)
 {
   int v5; // r2
   unsigned __int64 v6; // r0
   int v7; // r2
-  int i; // r3
-  int *v9; // r2
+  smem_mem_type i; // r3
+  smem_legacy_buf_data_type *v9; // r2
 
   if ( smem_type == SMEM_HW_RESET_DETECT )
   {
-    if ( a2 == 8 )
+    if ( size == 8 )
     {
       sub_401F74();
       return dword_405144 + 8400;
@@ -807,34 +802,39 @@ int __fastcall sub_401E2C(smem_mem_type smem_type, int a2)
   {
     if ( !dword_405144 )
     {
-      v5 = dword_405AE0;
-      if ( !dword_405AE0 && (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((_BYTE *)off_405130 + 29) )
+      v5 = firstMemoryResourceVirtualStart;
+      if ( !firstMemoryResourceVirtualStart && (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((_BYTE *)off_405130 + 29) )
       {
         LODWORD(v6) = *((_DWORD *)off_405130 + 4);
         HIDWORD(v6) = *((_DWORD *)off_405130 + 5);
         DoTraceMessage_01(v6, 0x25u, &WPP_Traceguids_01);
-        v5 = dword_405AE0;
+        v5 = firstMemoryResourceVirtualStart;
       }
       dword_405144 = v5;
     }
     v7 = 0;
-    for ( i = *off_405140; i != 426; i = off_405140[2 * v7] )
+    for ( i = smem_legacy_info__smem_legacy_buf_data_tbl->tag;
+          i != SMEM_VOICE;
+          i = smem_legacy_info__smem_legacy_buf_data_tbl[v7].tag )
     {
       if ( i == smem_type )
         break;
       ++v7;
     }
-    v9 = &off_405140[2 * v7];
-    if ( *v9 == smem_type && v9[1] == a2 )
-      return sub_401EEC(smem_type) + dword_405144;
+    v9 = &smem_legacy_info__smem_legacy_buf_data_tbl[v7];
+    if ( v9->tag == smem_type && v9->size == size )
+      return smem_legacy_get_offset(smem_type) + dword_405144;
     else
       return 0;
   }
 }
 
 
-// Function: sub_401EEC
-int __fastcall sub_401EEC(int a1)
+// Function: smem_legacy_get_offset
+// Returns the offset to one of the "fixed" memory buffers.  This function uses the local smem_buf_data_tbl, and does not touch the actual allocation table in SMEM.
+// 
+// https://github.com/David112x/android-firmware-qti-sdm660/blob/b5e5bb9ed6c92442fd502b3e726d7c8024dc0763/boot_images/QcomPkg/Library/SmemLib/src/smem_legacy.c#L182
+int __fastcall smem_legacy_get_offset(smem_mem_type tag)
 {
   int v1; // r2
   int v2; // r1
@@ -845,23 +845,23 @@ int __fastcall sub_401EEC(int a1)
 
   v1 = 0;
   v2 = 0;
-  v3 = *off_405140;
-  if ( *off_405140 != 426 )
+  v3 = *smem_legacy_info__smem_legacy_buf_data_tbl;
+  if ( *smem_legacy_info__smem_legacy_buf_data_tbl != 426 )
   {
-    v4 = off_405140;
+    v4 = smem_legacy_info__smem_legacy_buf_data_tbl;
     do
     {
-      if ( v3 == a1 )
+      if ( v3 == tag )
         break;
       v5 = v4[1];
       ++v2;
-      v4 = &off_405140[2 * v2];
+      v4 = &smem_legacy_info__smem_legacy_buf_data_tbl[2 * v2];
       v1 += v5;
       v3 = *v4;
     }
     while ( *v4 != 426 );
   }
-  if ( dword_4040D0[2 * v2] == a1 )
+  if ( smem_legacy_buf_data_tbl[v2].tag == tag )
     return v1;
   if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 )
   {
@@ -885,15 +885,15 @@ int sub_401F74()
 
   if ( !dword_405144 )
   {
-    v0 = dword_405AE0;
-    if ( !dword_405AE0 && (*((_DWORD *)off_405130 + 8) & 2) != 0 )
+    v0 = firstMemoryResourceVirtualStart;
+    if ( !firstMemoryResourceVirtualStart && (*((_DWORD *)off_405130 + 8) & 2) != 0 )
     {
       if ( *((_BYTE *)off_405130 + 29) )
       {
         LODWORD(v1) = *((_DWORD *)off_405130 + 4);
         HIDWORD(v1) = *((_DWORD *)off_405130 + 5);
         result = DoTraceMessage_01(v1, 0x25u, &WPP_Traceguids_01);
-        v0 = dword_405AE0;
+        v0 = firstMemoryResourceVirtualStart;
       }
     }
     dword_405144 = v0;
@@ -903,7 +903,7 @@ int sub_401F74()
 
 
 // Function: smem_init
-int sub_401FCC()
+int smem_init()
 {
   int v0; // r1
   unsigned __int64 v1; // r0
@@ -918,37 +918,37 @@ int sub_401FCC()
 
   if ( !dword_405144 )
   {
-    v0 = dword_405AE0;
-    if ( !dword_405AE0 && (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((_BYTE *)off_405130 + 29) )
+    v0 = firstMemoryResourceVirtualStart;
+    if ( !firstMemoryResourceVirtualStart && (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((_BYTE *)off_405130 + 29) )
     {
       LODWORD(v1) = *((_DWORD *)off_405130 + 4);
       HIDWORD(v1) = *((_DWORD *)off_405130 + 5);
       DoTraceMessage_01(v1, 0x25u, &WPP_Traceguids_01);
-      v0 = dword_405AE0;
+      v0 = firstMemoryResourceVirtualStart;
     }
     dword_405144 = v0;
   }
-  dword_40513C = dword_405144 + sub_401EEC(2);
-  dword_405138 = dword_405144 + sub_401EEC(1);
-  result = sub_401EEC(8);
+  dword_40513C = dword_405144 + smem_legacy_get_offset(SMEM_ALLOCATION_TABLE);
+  dword_405138 = dword_405144 + smem_legacy_get_offset(SMEM_HEAP_INFO);
+  result = smem_legacy_get_offset(SMEM_MEMORY_BARRIER_LOCATION);
   dword_405148 = dword_405144 + result;
   if ( *(_DWORD *)dword_405138 == 1 )
   {
-    dword_405B00 = dword_405144 + sub_401EEC(7);
+    dword_405B00 = dword_405144 + smem_legacy_get_offset(SMEM_SPINLOCK_ARRAY);
     dword_405B04 = 8;
     KeInitializeSpinLock(&dword_405AF8);
     __dmb(0xFu);
     unk_40514C = 3;                             // smem_info.state = SMEM_STATE_INITIALIZED
     v4 = 1;
-    result = smem_alloc_equivalent(3, 128);
+    result = smem_legacy_alloc_static(SMEM_VERSION_INFO, 128);
     if ( result )
     {
       *(_DWORD *)(result + 32) |= 0xB0000u;     // 0xB0000 = SMEM_LEGACY_VERSION_ID
       __dmb(0xFu);
-      for ( i = 0; i < 0x20; ++i )
+      for ( i = 0; i < 32; ++i )
       {
         v8 = *(_DWORD *)(result + 4 * i) & 0xFFFF0000;
-        if ( v8 && v8 != 720896 )
+        if ( v8 && v8 != 0xB0000 )
         {
           v4 = 0;
           i = 32;
@@ -1009,7 +1009,7 @@ void *__fastcall smem_alloc(smem_mem_type smem_type, int buf_size)
   if ( unk_40514C == 1 )
     return 0;
   if ( (unsigned int)smem_type <= SMEM_MEMORY_BARRIER_LOCATION )
-    return (void *)smem_alloc_equivalent(smem_type, buf_size);
+    return (void *)smem_legacy_alloc_static(smem_type, buf_size);
   if ( !unk_40514C )
     smem_init(smem_type);
   if ( (unsigned int)smem_type > SMEM_SSR_REASON_VCODEC0 )
@@ -1031,8 +1031,8 @@ void *__fastcall smem_alloc(smem_mem_type smem_type, int buf_size)
     byte_405AFC = KeAcquireSpinLockRaiseToDpc(&dword_405AF8);
     do
     {
-      v9 = dword_405B50;
-      *(_DWORD *)(dword_405B50 + 12) = 0;
+      v9 = secondMemoryResourceVirtualStart;
+      *(_DWORD *)(secondMemoryResourceVirtualStart + 12) = 0;
     }
     while ( *(_DWORD *)(v9 + 12) );
   }
@@ -1094,7 +1094,7 @@ LABEL_28:
 LABEL_29:
   if ( dword_405B04 > 3 )
   {
-    *(_DWORD *)(dword_405B50 + 12) = 0;
+    *(_DWORD *)(secondMemoryResourceVirtualStart + 12) = 0;
     KeReleaseSpinLock(&dword_405AF8, byte_405AFC);
   }
   else if ( (v12[8] & 2) != 0 && *((_BYTE *)v12 + 29) )
@@ -1115,12 +1115,12 @@ LABEL_29:
 // allocated on any processor, are guaranteed to be zeroed.
 // 
 // https://github.com/Rivko/android-firmware-qti-sdm670/blob/main/boot_images/QcomPkg/Library/SmemLib/src/smem.c#L188
-int __fastcall smem_get_addr(smem_mem_type smem_type, _DWORD *a2)
+int __fastcall smem_get_addr(smem_mem_type smem_type, ULONG *size)
 {
   unsigned int v4; // r2
-  int *v5; // r4
-  int v6; // t1
-  int *v7; // r2
+  smem_legacy_buf_data_type *v5; // r4
+  smem_mem_type tag; // t1
+  smem_legacy_buf_data_type *v7; // r2
   unsigned __int64 v9; // r0
   unsigned __int64 v10; // r0
   int v11; // r3
@@ -1140,8 +1140,8 @@ int __fastcall smem_get_addr(smem_mem_type smem_type, _DWORD *a2)
         byte_405AFC = KeAcquireSpinLockRaiseToDpc(&dword_405AF8);
         do
         {
-          v11 = dword_405B50;
-          *(_DWORD *)(dword_405B50 + 12) = 0;
+          v11 = secondMemoryResourceVirtualStart;
+          *(_DWORD *)(secondMemoryResourceVirtualStart + 12) = 0;
         }
         while ( *(_DWORD *)(v11 + 12) );
       }
@@ -1154,17 +1154,17 @@ int __fastcall smem_get_addr(smem_mem_type smem_type, _DWORD *a2)
       v12 = 16 * smem_type;
       if ( *(_DWORD *)(16 * smem_type + dword_40513C) == 1 )
       {
-        *a2 = *(_DWORD *)(dword_40513C + v12 + 8);
+        *size = *(_DWORD *)(dword_40513C + v12 + 8);
         v13 = *(_DWORD *)(dword_40513C + v12 + 4) + dword_405144;
       }
       else
       {
-        *a2 = 0;
+        *size = 0;
         v13 = 0;
       }
       if ( dword_405B04 > 3 )
       {
-        *(_DWORD *)(dword_405B50 + 12) = 0;
+        *(_DWORD *)(secondMemoryResourceVirtualStart + 12) = 0;
         KeReleaseSpinLock(&dword_405AF8, byte_405AFC);
       }
       else if ( (*((_DWORD *)off_405130 + 8) & 2) != 0 && *((_BYTE *)off_405130 + 29) )
@@ -1176,9 +1176,9 @@ int __fastcall smem_get_addr(smem_mem_type smem_type, _DWORD *a2)
       if ( v13 )
       {
         v15 = sub_401D3C() + dword_405144;
-        if ( v13 < dword_405144 || v13 >= v15 || *a2 + v13 >= v15 )
+        if ( v13 < dword_405144 || v13 >= v15 || *size + v13 >= v15 )
         {
-          *a2 = 0;
+          *size = 0;
           return 0;
         }
       }
@@ -1198,19 +1198,19 @@ int __fastcall smem_get_addr(smem_mem_type smem_type, _DWORD *a2)
   else
   {
     v4 = 0;
-    v5 = off_405140;
+    v5 = smem_legacy_info__smem_legacy_buf_data_tbl;
     do
     {
-      v6 = *v5;
-      v5 += 2;
-      if ( v6 == smem_type )
+      tag = v5->tag;
+      ++v5;
+      if ( tag == smem_type )
         break;
       ++v4;
     }
     while ( v4 <= 8 );
-    v7 = &off_405140[2 * v4];
-    *a2 = v7[1];
-    return smem_alloc_equivalent(smem_type, v7[1]);
+    v7 = &smem_legacy_info__smem_legacy_buf_data_tbl[v4];
+    *size = v7->size;
+    return smem_legacy_alloc_static(smem_type, v7->size);
   }
 }
 
@@ -1563,8 +1563,8 @@ int __fastcall sub_402994(int result)
     byte_405AFC = result;
     do
     {
-      v2 = dword_405B50;
-      *(_DWORD *)(dword_405B50 + 4 * v1) = 0;
+      v2 = secondMemoryResourceVirtualStart;
+      *(_DWORD *)(secondMemoryResourceVirtualStart + 4 * v1) = 0;
     }
     while ( *(_DWORD *)(v2 + 4 * v1) );
   }
@@ -1592,7 +1592,7 @@ void __fastcall sub_402A10(int a1)
   }
   else
   {
-    *(_DWORD *)(dword_405B50 + 4 * a1) = 0;
+    *(_DWORD *)(secondMemoryResourceVirtualStart + 4 * a1) = 0;
     KeReleaseSpinLock(&dword_405AF8, byte_405AFC);
   }
 }
@@ -1612,13 +1612,13 @@ void __fastcall sub_402A74(int a1)
   byte_405AFC = v2;
   if ( dword_405B04 > 0 )
   {
-    v4 = dword_405B50;
+    v4 = secondMemoryResourceVirtualStart;
     do
     {
       v5 = *(_DWORD *)(v4 + 4 * v3);
-      v4 = dword_405B50;
+      v4 = secondMemoryResourceVirtualStart;
       if ( a1 == v5 )
-        *(_DWORD *)(dword_405B50 + 4 * v3) = 0;
+        *(_DWORD *)(secondMemoryResourceVirtualStart + 4 * v3) = 0;
       ++v3;
     }
     while ( v3 < dword_405B04 );
