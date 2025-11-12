@@ -1249,3 +1249,27 @@ enum _WDF_IO_TARGET_PURGE_IO_ACTION {
   WdfIoTargetPurgeIoAndWait = 1,
   WdfIoTargetPurgeIo = 2
 };
+
+enum _WAIT_TYPE {
+  WaitAll,
+  WaitAny
+};
+
+struct _KWAIT_BLOCK {
+    _LIST_ENTRY WaitListEntry;
+    UCHAR WaitType;
+    UCHAR BlockState;
+    USHORT WaitKey;
+    union {
+        PVOID Thread;
+        PVOID NotificationQueue;
+    };
+    PVOID Object;
+    PVOID SparePtr;
+};
+
+struct _STRING { // ANSI_STRING
+  USHORT Length;
+  USHORT MaximumLength;
+  PCHAR  Buffer;
+};
