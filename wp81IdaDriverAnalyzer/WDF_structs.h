@@ -37,8 +37,11 @@ typedef HANDLE WDFREQUEST;
 typedef HANDLE WDFSPINLOCK;
 typedef HANDLE WDFWAITLOCK;
 typedef HANDLE WDFWORKITEM;
+typedef HANDLE WDFKEY;
+typedef HANDLE WDFSTRING;
 typedef ULONG KSPIN_LOCK;
 typedef UCHAR KIRQL;
+typedef void *WDFCONTEXT;
 
 typedef struct _UNICODE_STRING {
   USHORT Length;
@@ -951,4 +954,298 @@ enum _MEMORY_CACHING_TYPE {
   MmUSWCCached,
   MmMaximumCacheType,
   MmNotMapped
+};
+
+struct _DEVICE_INTERFACE_CHANGE_NOTIFICATION {
+  USHORT          Version;
+  USHORT          Size;
+  GUID            Event;
+  GUID            InterfaceClassGuid;
+  PUNICODE_STRING SymbolicLinkName;
+};
+
+enum _WDF_REQUEST_TYPE {
+  WdfRequestTypeCreate = 0x0,
+  WdfRequestTypeCreateNamedPipe = 0x1,
+  WdfRequestTypeClose = 0x2,
+  WdfRequestTypeRead = 0x3,
+  WdfRequestTypeWrite = 0x4,
+  WdfRequestTypeQueryInformation = 0x5,
+  WdfRequestTypeSetInformation = 0x6,
+  WdfRequestTypeQueryEA = 0x7,
+  WdfRequestTypeSetEA = 0x8,
+  WdfRequestTypeFlushBuffers = 0x9,
+  WdfRequestTypeQueryVolumeInformation = 0xa,
+  WdfRequestTypeSetVolumeInformation = 0xb,
+  WdfRequestTypeDirectoryControl = 0xc,
+  WdfRequestTypeFileSystemControl = 0xd,
+  WdfRequestTypeDeviceControl = 0xe,
+  WdfRequestTypeDeviceControlInternal = 0xf,
+  WdfRequestTypeShutdown = 0x10,
+  WdfRequestTypeLockControl = 0x11,
+  WdfRequestTypeCleanup = 0x12,
+  WdfRequestTypeCreateMailSlot = 0x13,
+  WdfRequestTypeQuerySecurity = 0x14,
+  WdfRequestTypeSetSecurity = 0x15,
+  WdfRequestTypePower = 0x16,
+  WdfRequestTypeSystemControl = 0x17,
+  WdfRequestTypeDeviceChange = 0x18,
+  WdfRequestTypeQueryQuota = 0x19,
+  WdfRequestTypeSetQuota = 0x1A,
+  WdfRequestTypePnp = 0x1B,
+  WdfRequestTypeOther = 0x1C,
+  WdfRequestTypeUsb = 0x40,
+  WdfRequestTypeNoFormat = 0xFF,
+  WdfRequestTypeMax
+};
+
+struct _WDFMEMORY_OFFSET {
+  size_t BufferOffset;
+  size_t BufferLength;
+};
+
+struct _WDF_REQUEST_REUSE_PARAMS {
+  ULONG    Size;
+  ULONG    Flags;
+  NTSTATUS Status;
+  PIRP     NewIrp;
+};
+
+typedef LONG USBD_STATUS;
+
+enum _WDF_USB_REQUEST_TYPE {
+  WdfUsbRequestTypeInvalid = 0,
+  WdfUsbRequestTypeNoFormat,
+  WdfUsbRequestTypeDeviceString,
+  WdfUsbRequestTypeDeviceControlTransfer,
+  WdfUsbRequestTypeDeviceUrb,
+  WdfUsbRequestTypePipeWrite,
+  WdfUsbRequestTypePipeRead,
+  WdfUsbRequestTypePipeAbort,
+  WdfUsbRequestTypePipeReset,
+  WdfUsbRequestTypePipeUrb
+};
+
+typedef union _WDF_USB_CONTROL_SETUP_PACKET {
+  struct {
+    union {
+      struct {
+        BYTE Recipient : 2;
+        BYTE Reserved : 3;
+        BYTE Type : 2;
+        BYTE Dir : 1;
+      } Request;
+      BYTE   Byte;
+    } bm;
+    BYTE   bRequest;
+    union {
+      struct {
+        BYTE LowByte;
+        BYTE HiByte;
+      } Bytes;
+      USHORT Value;
+    } wValue;
+    union {
+      struct {
+        BYTE LowByte;
+        BYTE HiByte;
+      } Bytes;
+      USHORT Value;
+    } wIndex;
+    USHORT wLength;
+  } Packet;
+  struct {
+    BYTE Bytes[8];
+  } Generic;
+};
+
+struct _WDF_USB_REQUEST_COMPLETION_PARAMS {
+  USBD_STATUS          UsbdStatus;
+  _WDF_USB_REQUEST_TYPE Type;
+  union {
+    struct {
+      WDFMEMORY Buffer;
+      USHORT    LangID;
+      UCHAR     StringIndex;
+      UCHAR     RequiredSize;
+    } DeviceString;
+    struct {
+      WDFMEMORY                    Buffer;
+      _WDF_USB_CONTROL_SETUP_PACKET SetupPacket;
+      ULONG                        Length;
+    } DeviceControlTransfer;
+    struct {
+      WDFMEMORY Buffer;
+    } DeviceUrb;
+    struct {
+      WDFMEMORY Buffer;
+      size_t    Length;
+      size_t    Offset;
+    } PipeWrite;
+    struct {
+      WDFMEMORY Buffer;
+      size_t    Length;
+      size_t    Offset;
+    } PipeRead;
+    struct {
+      WDFMEMORY Buffer;
+    } PipeUrb;
+  } Parameters;
+};
+
+struct _WDF_REQUEST_COMPLETION_PARAMS {
+  ULONG            Size;
+  _WDF_REQUEST_TYPE Type;
+  _IO_STATUS_BLOCK  IoStatus;
+  union {
+    struct {
+      WDFMEMORY Buffer;
+      size_t    Length;
+      size_t    Offset;
+    } Write;
+    struct {
+      WDFMEMORY Buffer;
+      size_t    Length;
+      size_t    Offset;
+    } Read;
+    struct {
+      ULONG  IoControlCode;
+      struct {
+        WDFMEMORY Buffer;
+        size_t    Offset;
+      } Input;
+      struct {
+        WDFMEMORY Buffer;
+        size_t    Offset;
+        size_t    Length;
+      } Output;
+    } Ioctl;
+    struct {
+      union {
+        PVOID     Ptr;
+        ULONG *Value;
+      } Argument1;
+      union {
+        PVOID     Ptr;
+        ULONG *Value;
+      } Argument2;
+      union {
+        PVOID     Ptr;
+        ULONG *Value;
+      } Argument3;
+      union {
+        PVOID     Ptr;
+        ULONG *Value;
+      } Argument4;
+    } Others;
+    struct {
+      _WDF_USB_REQUEST_COMPLETION_PARAMS Completion;
+    } Usb;
+  } Parameters;
+};
+
+typedef VOID __fastcall EVT_WDF_REQUEST_COMPLETION_ROUTINE(WDFREQUEST Request, WDFIOTARGET Target, _WDF_REQUEST_COMPLETION_PARAMS *Params, WDFCONTEXT Context);
+
+typedef union {
+   struct {
+       ULONG LowPart;
+       LONG HighPart;
+   } u;
+   LONGLONG QuadPart;
+} PHYSICAL_ADDRESS;
+
+typedef ULONG *KAFFINITY;
+
+#pragma pack(push, 1)
+struct _CM_PARTIAL_RESOURCE_DESCRIPTOR {
+  UCHAR  Type;
+  UCHAR  ShareDisposition;
+  USHORT Flags;
+  union {
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length;
+    } Generic;
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length;
+    } Port;
+    struct {
+      ULONG     Level;
+      ULONG     Vector;
+      KAFFINITY Affinity;
+    } Interrupt;
+    struct {
+      union {
+        struct {
+          USHORT    Reserved;
+          USHORT    MessageCount;
+          ULONG     Vector;
+          KAFFINITY Affinity;
+        } Raw;
+        struct {
+          ULONG     Level;
+          ULONG     Vector;
+          KAFFINITY Affinity;
+        } Translated;
+      } DUMMYUNIONNAME;
+    } MessageInterrupt;
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length;
+    } Memory;
+    struct {
+      ULONG Channel;
+      ULONG Port;
+      ULONG Reserved1;
+    } Dma;
+    struct {
+      ULONG Channel;
+      ULONG RequestLine;
+      UCHAR TransferWidth;
+      UCHAR Reserved1;
+      UCHAR Reserved2;
+      UCHAR Reserved3;
+    } DmaV3;
+    struct {
+      ULONG Data[3];
+    } DevicePrivate;
+    struct {
+      ULONG Start;
+      ULONG Length;
+      ULONG Reserved;
+    } BusNumber;
+    struct {
+      ULONG DataSize;
+      ULONG Reserved1;
+      ULONG Reserved2;
+    } DeviceSpecificData;
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length40;
+    } Memory40;
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length48;
+    } Memory48;
+    struct {
+      PHYSICAL_ADDRESS Start;
+      ULONG            Length64;
+    } Memory64;
+    struct {
+      UCHAR Class;
+      UCHAR Type;
+      UCHAR Reserved1;
+      UCHAR Reserved2;
+      ULONG IdLowPart;
+      ULONG IdHighPart;
+    } Connection;
+  } u;
+};
+#pragma pack(pop)
+
+enum _WDF_IO_TARGET_PURGE_IO_ACTION {
+  WdfIoTargetPurgeIoUndefined = 0,
+  WdfIoTargetPurgeIoAndWait = 1,
+  WdfIoTargetPurgeIo = 2
 };
