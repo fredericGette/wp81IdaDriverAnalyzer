@@ -42,6 +42,7 @@ typedef HANDLE WDFSTRING;
 typedef ULONG KSPIN_LOCK;
 typedef UCHAR KIRQL;
 typedef void *WDFCONTEXT;
+typedef ULONG ACCESS_MASK;
 
 typedef struct _UNICODE_STRING {
   USHORT Length;
@@ -1273,3 +1274,37 @@ struct _STRING { // ANSI_STRING
   USHORT MaximumLength;
   PCHAR  Buffer;
 };
+
+struct in_addr {
+  union {
+    struct {
+      UCHAR s_b1;
+      UCHAR s_b2;
+      UCHAR s_b3;
+      UCHAR s_b4;
+    } S_un_b;
+    struct {
+      USHORT s_w1;
+      USHORT s_w2;
+    } S_un_w;
+    ULONG S_addr;
+  } S_un;
+};
+
+typedef NTSTATUS __fastcall IO_COMPLETION_ROUTINE(_DEVICE_OBJECT *DeviceObject, PIRP Irp, PVOID Context);
+
+enum _TIMER_TYPE {
+  NotificationTimer,
+  SynchronizationTimer
+};
+
+struct _OBJECT_ATTRIBUTES {
+  ULONG           Length;
+  HANDLE          RootDirectory;
+  _UNICODE_STRING *ObjectName;
+  ULONG           Attributes;
+  PVOID           SecurityDescriptor;
+  PVOID           SecurityQualityOfService;
+};
+
+typedef VOID  __fastcall KSTART_ROUTINE(PVOID StartContext);

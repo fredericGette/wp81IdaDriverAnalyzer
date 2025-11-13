@@ -1819,157 +1819,72 @@ def update_type_imported_function():
 	# EtwWrite
 	# EtwUnregister
 	
-	MmGetSystemRoutineAddress_address = idc.get_name_ea_simple('MmGetSystemRoutineAddress')
-	if MmGetSystemRoutineAddress_address != idaapi.BADADDR:
-		rename_function(MmGetSystemRoutineAddress_address, "PVOID __fastcall MmGetSystemRoutineAddress(PUNICODE_STRING SystemRoutineName)", force=True)
+	imported_functions = [
+	"PVOID __fastcall MmGetSystemRoutineAddress(PUNICODE_STRING SystemRoutineName)",
+	"VOID __fastcall KeInitializeEvent(_KEVENT *Event, _EVENT_TYPE Type, BOOLEAN State)",
+	"NTSTATUS __fastcall KeWaitForSingleObject(PVOID Object, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout)",
+	"VOID __fastcall KeBugCheckEx(ULONG BugCheckCode,ULONG *BugCheckParameter1, ULONG *BugCheckParameter2, ULONG *BugCheckParameter3, ULONG *BugCheckParameter4)",
+	"size_t __fastcall RtlCompareMemory(VOID *Source1, VOID *Source2, size_t Length)",
+	"PVOID __fastcall ExAllocatePoolWithTag(_POOL_TYPE PoolType, size_t NumberOfBytes, ULONG Tag)",
+	"NTSTATUS __fastcall IoRegisterPlugPlayNotification(_IO_NOTIFICATION_EVENT_CATEGORY EventCategory, ULONG EventCategoryFlags, PVOID EventCategoryData, _DRIVER_OBJECT *DriverObject, DRIVER_NOTIFICATION_CALLBACK_ROUTINE *CallbackRoutine, PVOID Context, PVOID *NotificationEntry)",
+	"LONG __fastcall KeSetEvent(_KEVENT *Event, LONG Increment, BOOLEAN Wait)",
+	"VOID __fastcall ExFreePool(PVOID P)",
+	"PVOID __fastcall MmMapIoSpace(LONGLONG PhysicalAddress, size_t NumberOfBytes, _MEMORY_CACHING_TYPE CacheType)",
+	"VOID __fastcall KeInitializeSpinLock(KSPIN_LOCK *SpinLock)",
+	"KIRQL __fastcall KeAcquireSpinLockRaiseToDpc(KSPIN_LOCK *SpinLock)",
+	"ULONG __fastcall DbgPrintEx(ULONG ComponentId, ULONG Level, CHAR *Format, ... )",
+	"VOID __fastcall RtlCopyUnicodeString(PUNICODE_STRING DestinationString, PUNICODE_STRING SourceString)",
+	"VOID __fastcall ExFreePoolWithTag(PVOID P, ULONG Tag)",
+	"VOID __fastcall RtlInitUnicodeString(PUNICODE_STRING DestinationString, PWSTR SourceString)",
+	"VOID __fastcall KeClearEvent(_KEVENT *Event)",
+	"VOID __fastcall KeReleaseSpinLock(KSPIN_LOCK *SpinLock, KIRQL NewIrql)",
+	"NTSTATUS __fastcall IoWMIRegistrationControl(_DEVICE_OBJECT *DeviceObject, ULONG Action)",
+	"size_t __fastcall __imp_strlen(char *str)",
+	"int __fastcall __imp_strncmp(char *string1, char *string2, size_t count)",
+	"int __fastcall __imp_strcmp( char *string1, char *string2)",
+	"BOOLEAN __fastcall ExAcquireResourceExclusiveLite(VOID* Resource, BOOLEAN Wait)",
+	"VOID __fastcall KeLeaveCriticalRegion()",
+	"VOID __fastcall KeEnterCriticalRegion()",
+	"VOID __fastcall ExReleaseResourceLite(VOID* Resource)",
+	"VOID __fastcall RtlAssert(PVOID VoidFailedAssertion, PVOID VoidFileName, ULONG LineNumber, CHAR *MutableMessage)",
+	"NTSTATUS __fastcall KeWaitForMultipleObjects(ULONG Count, PVOID Object[], _WAIT_TYPE WaitType, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout, _KWAIT_BLOCK *WaitBlockArray)",
+	"ULONG __fastcall ExIsResourceAcquiredSharedLite(VOID* Resource)",
+	"BOOLEAN __fastcall ExIsResourceAcquiredExclusiveLite(VOID *Resource)",
+	"VOID __fastcall MmBuildMdlForNonPagedPool(_MDL *MemoryDescriptorList)",
+	"VOID __fastcall IoFreeMdl(_MDL *MemoryDescriptorList)",
+	"_LIST_ENTRY* __fastcall ExInterlockedInsertTailList(_LIST_ENTRY *ListHead, _LIST_ENTRY *ListEntry, KSPIN_LOCK *Lock)",
+	"NTSTATUS __fastcall PsTerminateSystemThread(NTSTATUS ExitStatus)",
+	"BOOLEAN __fastcall ExAcquireResourceSharedLite(VOID *Resource, BOOLEAN Wait)",
+	"_MDL* __fastcall IoAllocateMdl(PVOID VirtualAddress, ULONG Length, BOOLEAN SecondaryBuffer, BOOLEAN ChargeQuota, PIRP Irp)",
+	"int __fastcall __imp_atoi(char *str)",
+	"NTSTATUS __fastcall RtlUnicodeStringToAnsiString(_STRING *DestinationString, _UNICODE_STRING *SourceString, BOOLEAN AllocateDestinationString)",
+	"NTSTATUS __fastcall ObReferenceObjectByHandle(HANDLE Handle,  ACCESS_MASK DesiredAccess, PVOID ObjectType, _KPROCESSOR_MODE AccessMode, PVOID *Object, PVOID HandleInformation)",
+	"VOID __fastcall IoFreeIrp(PIRP Irp)",
+	"PIRP __fastcall IoAllocateIrp(char StackSize, BOOLEAN ChargeQuota)",
+	"_LIST_ENTRY* __fastcall ExInterlockedRemoveHeadList(_LIST_ENTRY *ListHead, KSPIN_LOCK *Lock)",
+	"NTSTATUS __fastcall ExDeleteResourceLite(PVOID Resource)",
+	"NTSTATUS __fastcall ExInitializeResourceLite(PVOID Resource)",
+	"VOID __fastcall IoReuseIrp(PIRP Irp, NTSTATUS Iostatus)",
+	"BOOLEAN __fastcall KeSetTimerEx(PVOID Timer, LONGLONG DueTime, LONG Period, _KDPC *Dpc)",
+	"PVOID __fastcall MmMapLockedPagesSpecifyCache(_MDL *MemoryDescriptorList, _KPROCESSOR_MODE AccessMode, _MEMORY_CACHING_TYPE CacheType, PVOID RequestedAddress, ULONG BugCheckOnFailure, ULONG Priority)",
+	"NTSTATUS __fastcall RtlIpv4StringToAddressA(CHAR* S, BOOLEAN Strict, CHAR* *Terminator, in_addr *Addr)",
+	"VOID __fastcall RtlFreeAnsiString(_STRING *AnsiString)",
+	"NTSTATUS __fastcall IoSetCompletionRoutineEx(_DEVICE_OBJECT *DeviceObject, PIRP Irp, IO_COMPLETION_ROUTINE *CompletionRoutine, PVOID Context, BOOLEAN InvokeOnSuccess, BOOLEAN InvokeOnError, BOOLEAN InvokeOnCancel)",
+	"VOID __fastcall KeInitializeTimerEx(PVOID Timer, _TIMER_TYPE Type)",
+	"BOOLEAN __fastcall KeCancelTimer(PVOID Timer)",
+	"int __fastcall __imp__vsnwprintf(wchar_t *buffer, size_t count, wchar_t *format, va_list argptr)",
+	"VOID __fastcall MmUnlockPages(_MDL *MemoryDescriptorList)",
+	"void __fastcall ObfDereferenceObject(void* a)",
+	"NTSTATUS __fastcall ZwClose(HANDLE Handle)",
+	"NTSTATUS __fastcall PsCreateSystemThread(HANDLE *ThreadHandle, ULONG DesiredAccess, _OBJECT_ATTRIBUTES *ObjectAttributes, HANDLE ProcessHandle, PVOID ClientId, KSTART_ROUTINE *StartRoutine, PVOID StartContext)",
+	"NTSTATUS __fastcall IoUnregisterPlugPlayNotificationEx(PVOID NotificationEntry)"
+	]
 	
-	KeInitializeEvent_address = idc.get_name_ea_simple('KeInitializeEvent')
-	if KeInitializeEvent_address != idaapi.BADADDR:
-		rename_function(KeInitializeEvent_address, "VOID __fastcall KeInitializeEvent(_KEVENT *Event, _EVENT_TYPE Type, BOOLEAN State)", force=True)
-	
-	KeWaitForSingleObject_address = idc.get_name_ea_simple('KeWaitForSingleObject')
-	if KeWaitForSingleObject_address != idaapi.BADADDR:
-		rename_function(KeWaitForSingleObject_address, "NTSTATUS __fastcall KeWaitForSingleObject(PVOID Object, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout)", force=True)
-	
-	KeBugCheckEx_address = idc.get_name_ea_simple('KeBugCheckEx')
-	if KeBugCheckEx_address != idaapi.BADADDR:
-		rename_function(KeBugCheckEx_address, "VOID __fastcall KeBugCheckEx(ULONG BugCheckCode,ULONG *BugCheckParameter1, ULONG *BugCheckParameter2, ULONG *BugCheckParameter3, ULONG *BugCheckParameter4)", force=True)
-	
-	RtlCompareMemory_address = idc.get_name_ea_simple('RtlCompareMemory')
-	if RtlCompareMemory_address != idaapi.BADADDR:
-		rename_function(RtlCompareMemory_address, "size_t __fastcall RtlCompareMemory(VOID *Source1, VOID *Source2, size_t Length)", force=True)
-	
-	ExAllocatePoolWithTag_address = idc.get_name_ea_simple('ExAllocatePoolWithTag')
-	if ExAllocatePoolWithTag_address != idaapi.BADADDR:
-		rename_function(ExAllocatePoolWithTag_address, "PVOID __fastcall ExAllocatePoolWithTag(_POOL_TYPE PoolType, size_t NumberOfBytes, ULONG Tag)", force=True)
-	
-	IoRegisterPlugPlayNotification_address = idc.get_name_ea_simple('IoRegisterPlugPlayNotification')
-	if IoRegisterPlugPlayNotification_address != idaapi.BADADDR:
-		rename_function(IoRegisterPlugPlayNotification_address, "NTSTATUS __fastcall IoRegisterPlugPlayNotification(_IO_NOTIFICATION_EVENT_CATEGORY EventCategory, ULONG EventCategoryFlags, PVOID EventCategoryData, _DRIVER_OBJECT *DriverObject, DRIVER_NOTIFICATION_CALLBACK_ROUTINE *CallbackRoutine, PVOID Context, PVOID *NotificationEntry)", force=True)
-	
-	KeSetEvent_address = idc.get_name_ea_simple('KeSetEvent')
-	if KeSetEvent_address != idaapi.BADADDR:
-		rename_function(KeSetEvent_address, "LONG __fastcall KeSetEvent( _KEVENT *Event, LONG Increment, BOOLEAN Wait)", force=True)
-	
-	ExFreePool_address = idc.get_name_ea_simple('ExFreePool')
-	if ExFreePool_address != idaapi.BADADDR:
-		rename_function(ExFreePool_address, "VOID __fastcall ExFreePool( PVOID P)", force=True)
-	
-	MmMapIoSpace_address = idc.get_name_ea_simple('MmMapIoSpace')
-	if MmMapIoSpace_address != idaapi.BADADDR:
-		rename_function(MmMapIoSpace_address, "PVOID __fastcall MmMapIoSpace( LONGLONG PhysicalAddress, size_t NumberOfBytes, _MEMORY_CACHING_TYPE CacheType)", force=True)
-	
-	KeInitializeSpinLock_address = idc.get_name_ea_simple('KeInitializeSpinLock')
-	if KeInitializeSpinLock_address != idaapi.BADADDR:
-		rename_function(KeInitializeSpinLock_address, "VOID __fastcall KeInitializeSpinLock( KSPIN_LOCK *SpinLock)", force=True)
-	
-	KeAcquireSpinLockRaiseToDpc_address = idc.get_name_ea_simple('KeAcquireSpinLockRaiseToDpc')
-	if KeAcquireSpinLockRaiseToDpc_address != idaapi.BADADDR:
-		rename_function(KeAcquireSpinLockRaiseToDpc_address, "KIRQL __fastcall KeAcquireSpinLockRaiseToDpc(KSPIN_LOCK *SpinLock)", force=True)
-	
-	DbgPrintEx_address = idc.get_name_ea_simple('DbgPrintEx')
-	if DbgPrintEx_address != idaapi.BADADDR:
-		rename_function(DbgPrintEx_address, "ULONG __fastcall DbgPrintEx(ULONG ComponentId, ULONG Level, CHAR *Format, ... )", force=True)
-	
-	RtlCopyUnicodeString_address = idc.get_name_ea_simple('RtlCopyUnicodeString')
-	if RtlCopyUnicodeString_address != idaapi.BADADDR:
-		rename_function(RtlCopyUnicodeString_address, "VOID __fastcall RtlCopyUnicodeString( PUNICODE_STRING DestinationString, PUNICODE_STRING SourceString)", force=True)
-	
-	ExFreePoolWithTag_address = idc.get_name_ea_simple('ExFreePoolWithTag')
-	if ExFreePoolWithTag_address != idaapi.BADADDR:
-		rename_function(ExFreePoolWithTag_address, "VOID __fastcall ExFreePoolWithTag( PVOID P, ULONG Tag)", force=True)
-	
-	RtlInitUnicodeString_address = idc.get_name_ea_simple('RtlInitUnicodeString')
-	if RtlInitUnicodeString_address != idaapi.BADADDR:
-		rename_function(RtlInitUnicodeString_address, "VOID __fastcall RtlInitUnicodeString( PUNICODE_STRING DestinationString, PWSTR SourceString)", force=True)
-	
-	KeClearEvent_address = idc.get_name_ea_simple('KeClearEvent')
-	if KeClearEvent_address != idaapi.BADADDR:
-		rename_function(KeClearEvent_address, "VOID __fastcall KeClearEvent( _KEVENT *Event)", force=True)
-	
-	KeReleaseSpinLock_address = idc.get_name_ea_simple('KeReleaseSpinLock')
-	if KeReleaseSpinLock_address != idaapi.BADADDR:
-		rename_function(KeReleaseSpinLock_address, "VOID __fastcall KeReleaseSpinLock(KSPIN_LOCK *SpinLock, KIRQL NewIrql)", force=True)
-	
-	IoWMIRegistrationControl_address = idc.get_name_ea_simple('IoWMIRegistrationControl')
-	if IoWMIRegistrationControl_address != idaapi.BADADDR:
-		rename_function(IoWMIRegistrationControl_address, "NTSTATUS __fastcall IoWMIRegistrationControl( _DEVICE_OBJECT *DeviceObject, ULONG Action)", force=True)
-	
-	__imp_strlen_address = idc.get_name_ea_simple('__imp_strlen')
-	if __imp_strlen_address != idaapi.BADADDR:
-		rename_function(__imp_strlen_address, "size_t __fastcall __imp_strlen( char *str)", force=True)
-	
-	__imp_strncmp_address = idc.get_name_ea_simple('__imp_strncmp')
-	if __imp_strncmp_address != idaapi.BADADDR:
-		rename_function(__imp_strncmp_address, "int __fastcall __imp_strncmp( char *string1, char *string2, size_t count)", force=True)
-	
-	__imp_strcmp_address = idc.get_name_ea_simple('__imp_strcmp')
-	if __imp_strcmp_address != idaapi.BADADDR:
-		rename_function(__imp_strcmp_address, "int __fastcall __imp_strcmp( char *string1, char *string2)", force=True)
-	
-	ExAcquireResourceExclusiveLite_address = idc.get_name_ea_simple('ExAcquireResourceExclusiveLite')
-	if ExAcquireResourceExclusiveLite_address != idaapi.BADADDR:
-		rename_function(ExAcquireResourceExclusiveLite_address, "BOOLEAN __fastcall ExAcquireResourceExclusiveLite(VOID* Resource, BOOLEAN Wait)", force=True)
-	
-	KeLeaveCriticalRegion_address = idc.get_name_ea_simple('KeLeaveCriticalRegion')
-	if KeLeaveCriticalRegion_address != idaapi.BADADDR:
-		rename_function(KeLeaveCriticalRegion_address, "VOID __fastcall KeLeaveCriticalRegion()", force=True)
-	
-	KeEnterCriticalRegion_address = idc.get_name_ea_simple('KeEnterCriticalRegion')
-	if KeEnterCriticalRegion_address != idaapi.BADADDR:
-		rename_function(KeEnterCriticalRegion_address, "VOID __fastcall KeEnterCriticalRegion()", force=True)
-	
-	ExReleaseResourceLite_address = idc.get_name_ea_simple('ExReleaseResourceLite')
-	if ExReleaseResourceLite_address != idaapi.BADADDR:
-		rename_function(ExReleaseResourceLite_address, "VOID __fastcall ExReleaseResourceLite(VOID* Resource)", force=True)
-	
-	RtlAssert_address = idc.get_name_ea_simple('RtlAssert')
-	if RtlAssert_address != idaapi.BADADDR:
-		rename_function(RtlAssert_address, "VOID __fastcall RtlAssert(PVOID VoidFailedAssertion, PVOID VoidFileName, ULONG LineNumber, CHAR *MutableMessage)", force=True)
-	
-	KeWaitForMultipleObjects_address = idc.get_name_ea_simple('KeWaitForMultipleObjects')
-	if KeWaitForMultipleObjects_address != idaapi.BADADDR:
-		rename_function(KeWaitForMultipleObjects_address, "NTSTATUS __fastcall KeWaitForMultipleObjects(ULONG Count, PVOID Object[], _WAIT_TYPE WaitType, _KWAIT_REASON WaitReason, _KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Timeout, _KWAIT_BLOCK *WaitBlockArray)", force=True)
-	
-	ExIsResourceAcquiredSharedLite_address = idc.get_name_ea_simple('ExIsResourceAcquiredSharedLite')
-	if ExIsResourceAcquiredSharedLite_address != idaapi.BADADDR:
-		rename_function(ExIsResourceAcquiredSharedLite_address, "ULONG __fastcall ExIsResourceAcquiredSharedLite(VOID* Resource)", force=True)
-	
-	ExIsResourceAcquiredExclusiveLite_address = idc.get_name_ea_simple('ExIsResourceAcquiredExclusiveLite')
-	if ExIsResourceAcquiredExclusiveLite_address != idaapi.BADADDR:
-		rename_function(ExIsResourceAcquiredExclusiveLite_address, "BOOLEAN __fastcall ExIsResourceAcquiredExclusiveLite(VOID *Resource)", force=True)
-	
-	MmBuildMdlForNonPagedPool_address = idc.get_name_ea_simple('MmBuildMdlForNonPagedPool')
-	if MmBuildMdlForNonPagedPool_address != idaapi.BADADDR:
-		rename_function(MmBuildMdlForNonPagedPool_address, "VOID __fastcall MmBuildMdlForNonPagedPool(_MDL *MemoryDescriptorList)", force=True)
-	
-	IoFreeMdl_address = idc.get_name_ea_simple('IoFreeMdl')
-	if IoFreeMdl_address != idaapi.BADADDR:
-		rename_function(IoFreeMdl_address, "VOID __fastcall IoFreeMdl(_MDL *MemoryDescriptorList)", force=True)
-	
-	ExInterlockedInsertTailList_address = idc.get_name_ea_simple('ExInterlockedInsertTailList')
-	if ExInterlockedInsertTailList_address != idaapi.BADADDR:
-		rename_function(ExInterlockedInsertTailList_address, "_LIST_ENTRY* __fastcall ExInterlockedInsertTailList(_LIST_ENTRY *ListHead, _LIST_ENTRY *ListEntry, KSPIN_LOCK *Lock)", force=True)
-	
-	PsTerminateSystemThread_address = idc.get_name_ea_simple('PsTerminateSystemThread')
-	if PsTerminateSystemThread_address != idaapi.BADADDR:
-		rename_function(PsTerminateSystemThread_address, "NTSTATUS __fastcall PsTerminateSystemThread(NTSTATUS ExitStatus)", force=True)
-	
-	ExAcquireResourceSharedLite_address = idc.get_name_ea_simple('ExAcquireResourceSharedLite')
-	if ExAcquireResourceSharedLite_address != idaapi.BADADDR:
-		rename_function(ExAcquireResourceSharedLite_address, "BOOLEAN __fastcall ExAcquireResourceSharedLite(VOID *Resource, BOOLEAN Wait)", force=True)
-	
-	IoAllocateMdl_address = idc.get_name_ea_simple('IoAllocateMdl')
-	if IoAllocateMdl_address != idaapi.BADADDR:
-		rename_function(IoAllocateMdl_address, "_MDL* __fastcall IoAllocateMdl(PVOID VirtualAddress, ULONG Length, BOOLEAN SecondaryBuffer, BOOLEAN ChargeQuota, PIRP Irp)", force=True)
-	
-	__imp_atoi_address = idc.get_name_ea_simple('__imp_atoi')
-	if __imp_atoi_address != idaapi.BADADDR:
-		rename_function(__imp_atoi_address, "int __fastcall atoi(char *str)", force=True)
-	
-	RtlUnicodeStringToAnsiString_address = idc.get_name_ea_simple('RtlUnicodeStringToAnsiString')
-	if RtlUnicodeStringToAnsiString_address != idaapi.BADADDR:
-		rename_function(RtlUnicodeStringToAnsiString_address, "NTSTATUS __fastcall RtlUnicodeStringToAnsiString(_STRING *DestinationString, _UNICODE_STRING *SourceString, BOOLEAN AllocateDestinationString)", force=True)
+	for proto_function in imported_functions:
+		function_name = extract_function_name_from_proto(proto_function)
+		function_address = idc.get_name_ea_simple(function_name)
+		if function_address != idaapi.BADADDR:
+			rename_function(function_address, proto_function, force=True)
 
 def cast_WDF_functions():
 	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')
