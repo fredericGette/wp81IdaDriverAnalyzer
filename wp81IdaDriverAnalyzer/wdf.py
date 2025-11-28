@@ -1777,6 +1777,7 @@ def create_object_contextes():
 	for xref in xrefs_list:
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
+		# print(f"function_name={function_name}")
 		# Decompile the function to find the call to WdfObjectGetTypedContextWorker
 		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
 		visitor = find_all_call_visitor('WdfObjectGetTypedContextWorker')
@@ -1800,7 +1801,7 @@ def create_object_contextes():
 				# Try to change the type of the variable assigned by WdfObjectGetTypedContextWorker
 				# Usually, it's a register instead of a stack frame variable.
 				asg_expr = asg_citem.cexpr
-				if asg_expr:
+				if asg_expr and asg_expr.x.op == idaapi.cot_var:
 					struct_tinfo = idaapi.tinfo_t()
 					struct_tinfo.get_named_type(None, structure_name)
 					ptr_struct_tinfo = idaapi.tinfo_t()
@@ -1885,31 +1886,6 @@ def update_type_imported_function():
 		function_address = idc.get_name_ea_simple(function_name)
 		if function_address != idaapi.BADADDR:
 			rename_function(function_address, proto_function, force=True)
-
-def cast_WDF_functions():
-	wdf_function_address = find_wdf_function_address('WdfDeviceInitSetIoType')
-	# Use XrefsTo to get all cross-references to the target address
-	xrefs = idautils.XrefsTo(wdf_function_address)
-	xrefs_list = list(xrefs)  # Convert the generator to a list
-	# Check if any references were found
-	if len(xrefs_list) < 1:
-		# WdfDeviceInitSetPnpPowerEventCallbacks is never called
-		return
-	for xref in xrefs_list:
-		function = ida_funcs.get_func(xref.frm)
-		function_name = idc.get_name(function.start_ea)
-		# Decompile the function to find the call to the WDF function
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
-		visitor = find_all_call_visitor('WdfDeviceInitSetIoType')
-		visitor.apply_to(cfunc.body, None)
-		for call_expr,_ in visitor.list_found_call:
-			if call_expr.x.op  == idaapi.cot_cast:
-				print(f"type={call_expr.x.type}")
-				new_type_info = idaapi.tinfo_t()
-				new_type_info.get_named_type(None, "void __fastcall WdfDeviceInitSetIoType(int todo, WDFDEVICE_INIT* DeviceInit, _WDF_DEVICE_IO_TYPE IoType)")
-				print(f"new type={new_type_info}")
-				call_expr.x.type.swap(new_type_info)
-				print(f"swap type={call_expr.x.type}")
 
 def rename_functions_and_offsets():
 	
@@ -2066,4 +2042,3 @@ def rename_functions_and_offsets():
 	rename_GUID_interface()
 	rename_callbacks_WdfDeviceAddQueryInterface()
 	create_object_contextes()
-	#cast_WDF_functions()
