@@ -39,6 +39,7 @@ typedef HANDLE WDFWAITLOCK;
 typedef HANDLE WDFWORKITEM;
 typedef HANDLE WDFKEY;
 typedef HANDLE WDFSTRING;
+typedef HANDLE WDFCHILDLIST;
 typedef ULONG KSPIN_LOCK;
 typedef UCHAR KIRQL;
 typedef void *WDFCONTEXT;
@@ -1308,3 +1309,74 @@ struct _OBJECT_ATTRIBUTES {
 };
 
 typedef VOID  __fastcall KSTART_ROUTINE(PVOID StartContext);
+
+struct _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER {
+  ULONG IdentificationDescriptionSize;
+};
+
+struct _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER {
+  ULONG AddressDescriptionSize;
+};
+
+struct _WDF_DEVICE_STATE {
+  ULONG         Size;
+  _WDF_TRI_STATE Disabled;
+  _WDF_TRI_STATE DontDisplayInUI;
+  _WDF_TRI_STATE Failed;
+  _WDF_TRI_STATE NotDisableable;
+  _WDF_TRI_STATE Removed;
+  _WDF_TRI_STATE ResourcesChanged;
+  _WDF_TRI_STATE AssignedToGuest;
+};
+
+enum _WDF_POWER_POLICY_S0_IDLE_CAPABILITIES {
+  IdleCapsInvalid = 0,
+  IdleCannotWakeFromS0,
+  IdleCanWakeFromS0,
+  IdleUsbSelectiveSuspend
+};
+
+enum _DEVICE_POWER_STATE {
+  PowerDeviceUnspecified,
+  PowerDeviceD0,
+  PowerDeviceD1,
+  PowerDeviceD2,
+  PowerDeviceD3,
+  PowerDeviceMaximum
+};
+
+enum _WDF_POWER_POLICY_S0_IDLE_USER_CONTROL {
+  IdleUserControlInvalid = 0,
+  IdleDoNotAllowUserControl,
+  IdleAllowUserControl
+};
+
+enum _WDF_POWER_POLICY_IDLE_TIMEOUT_TYPE {
+  DriverManagedIdleTimeout = 0,
+  SystemManagedIdleTimeout = 1,
+  SystemManagedIdleTimeoutWithHint = 2
+};
+
+struct _WDF_DEVICE_POWER_POLICY_IDLE_SETTINGS {
+  ULONG                                 Size;
+  _WDF_POWER_POLICY_S0_IDLE_CAPABILITIES IdleCaps;
+  _DEVICE_POWER_STATE                    DxState;
+  ULONG                                 IdleTimeout;
+  _WDF_POWER_POLICY_S0_IDLE_USER_CONTROL UserControlOfIdleSettings;
+  _WDF_TRI_STATE                         Enabled;
+  _WDF_TRI_STATE                         PowerUpIdleDeviceOnSystemWake;
+  _WDF_POWER_POLICY_IDLE_TIMEOUT_TYPE    IdleTimeoutType;
+  _WDF_TRI_STATE                         ExcludeD3Cold;
+};
+
+struct _WDF_POWER_POLICY_EVENT_CALLBACKS {
+  ULONG                                       Size;
+  NTSTATUS (__fastcall EvtWdfDeviceArmWakeFromS0)(WDFDEVICE Device);
+  VOID (__fastcall EvtWdfDeviceDisarmWakeFromS0)(WDFDEVICE Device);
+  VOID (__fastcall EvtWdfDeviceWakeFromS0Triggered)(WDFDEVICE Device);
+  NTSTATUS (__fastcall EvtWdfDeviceArmWakeFromSx)(WDFDEVICE Device);
+  VOID (__fastcall EvtWdfDeviceDisarmWakeFromSx)(WDFDEVICE Device);
+  VOID (__fastcall EvtWdfDeviceWakeFromSxTriggered)(WDFDEVICE Device);
+  NTSTATUS (__fastcall EvtWdfDeviceArmWakeFromSxWithReason)(WDFDEVICE Device, BOOLEAN DeviceWakeEnabled, BOOLEAN ChildrenArmedForWake);
+};
+
