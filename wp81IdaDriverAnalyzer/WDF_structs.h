@@ -1380,3 +1380,99 @@ struct _WDF_POWER_POLICY_EVENT_CALLBACKS {
   NTSTATUS (__fastcall EvtWdfDeviceArmWakeFromSxWithReason)(WDFDEVICE Device, BOOLEAN DeviceWakeEnabled, BOOLEAN ChildrenArmedForWake);
 };
 
+struct _WDF_DEVICE_PNP_CAPABILITIES {
+  ULONG         Size;
+  _WDF_TRI_STATE LockSupported;
+  _WDF_TRI_STATE EjectSupported;
+  _WDF_TRI_STATE Removable;
+  _WDF_TRI_STATE DockDevice;
+  _WDF_TRI_STATE UniqueID;
+  _WDF_TRI_STATE SilentInstall;
+  _WDF_TRI_STATE SurpriseRemovalOK;
+  _WDF_TRI_STATE HardwareDisabled;
+  _WDF_TRI_STATE NoDisplayInUI;
+  ULONG         Address;
+  ULONG         UINumber;
+};
+
+enum _DEVICE_POWER_STATE {
+  PowerDeviceUnspecified,
+  PowerDeviceD0,
+  PowerDeviceD1,
+  PowerDeviceD2,
+  PowerDeviceD3,
+  PowerDeviceMaximum
+};
+
+enum _SYSTEM_POWER_STATE {
+  PowerSystemUnspecified = 0,
+  PowerSystemWorking     = 1,
+  PowerSystemSleeping1   = 2,
+  PowerSystemSleeping2   = 3,
+  PowerSystemSleeping3   = 4,
+  PowerSystemHibernate   = 5,
+  PowerSystemShutdown    = 6,
+  PowerSystemMaximum     = 7
+};
+
+struct _WDF_DEVICE_POWER_CAPABILITIES {
+  ULONG              Size;
+  _WDF_TRI_STATE      DeviceD1;
+  _WDF_TRI_STATE      DeviceD2;
+  _WDF_TRI_STATE      WakeFromD0;
+  _WDF_TRI_STATE      WakeFromD1;
+  _WDF_TRI_STATE      WakeFromD2;
+  _WDF_TRI_STATE      WakeFromD3;
+  _DEVICE_POWER_STATE DeviceState[PowerSystemMaximum];
+  _DEVICE_POWER_STATE DeviceWake;
+  _SYSTEM_POWER_STATE SystemWake;
+  ULONG              D1Latency;
+  ULONG              D2Latency;
+  ULONG              D3Latency;
+  _DEVICE_POWER_STATE IdealDxStateForSx;
+};
+
+enum _INTERFACE_TYPE {
+    InterfaceTypeUndefined = -1,
+    Internal,
+    Isa,
+    Eisa,
+    MicroChannel,
+    TurboChannel,
+    PCIBus,
+    VMEBus,
+    NuBus,
+    PCMCIABus,
+    CBus,
+    MPIBus,
+    MPSABus,
+    ProcessorInternal,
+    InternalPowerBus,
+    PNPISABus,
+    PNPBus,
+    Vmcs,
+    ACPIBus,
+    MaximumInterfaceType
+};
+
+struct _PNP_BUS_INFORMATION {
+  GUID           BusTypeGuid;
+  _INTERFACE_TYPE LegacyBusType;
+  ULONG          BusNumber;
+};
+
+struct _WDF_CHILD_LIST_CONFIG {
+  ULONG                                                   Size;
+  ULONG                                                   IdentificationDescriptionSize;
+  ULONG                                                   AddressDescriptionSize;
+  NTSTATUS (__fastcall EvtWdfChildListCreateDevice)(WDFCHILDLIST ChildList, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *IdentificationDescription, WDFDEVICE_INIT *ChildInit);
+  VOID (__fastcall EvtWdfChildListScanForChildren)(WDFCHILDLIST ChildList);
+  VOID (__fastcall EvtWdfChildListIdentificationDescriptionCopy)(WDFCHILDLIST ChildList, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *SourceIdentificationDescription, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *DestinationIdentificationDescription);
+  NTSTATUS (__fastcall EvtWdfChildListIdentificationDescriptionDuplicate)(WDFCHILDLIST ChildList, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *SourceIdentificationDescription, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *DestinationIdentificationDescription);
+  VOID (__fastcall EvtWdfChildListIdentificationDescriptionCleanup)(WDFCHILDLIST ChildList, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *IdentificationDescription);
+  BOOLEAN (__fastcall EvtWdfChildListIdentificationDescriptionCompare)(WDFCHILDLIST ChildList, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER *FirstIdentificationDescription, _WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SecondIdentificationDescription);
+  VOID (__fastcall EvtWdfChildListAddressDescriptionCopy)(WDFCHILDLIST ChildList, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *SourceAddressDescription, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *DestinationAddressDescription);
+  NTSTATUS (__fastcall EvtWdfChildListAddressDescriptionDuplicate)(WDFCHILDLIST ChildList, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *SourceAddressDescription, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *DestinationAddressDescription);
+  VOID (__fastcall EvtWdfChildListAddressDescriptionCleanup)(WDFCHILDLIST ChildList, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *AddressDescription);
+  BOOLEAN (__fastcall EvtWdfChildListDeviceReenumerated)(WDFCHILDLIST ChildList, WDFDEVICE OldDevice, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *OldAddressDescription, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *NewAddressDescription);
+};
