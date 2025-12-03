@@ -1873,12 +1873,26 @@ def update_type_imported_function():
 	"NTSTATUS __fastcall IoSetCompletionRoutineEx(_DEVICE_OBJECT *DeviceObject, PIRP Irp, IO_COMPLETION_ROUTINE *CompletionRoutine, PVOID Context, BOOLEAN InvokeOnSuccess, BOOLEAN InvokeOnError, BOOLEAN InvokeOnCancel)",
 	"VOID __fastcall KeInitializeTimerEx(PVOID Timer, _TIMER_TYPE Type)",
 	"BOOLEAN __fastcall KeCancelTimer(PVOID Timer)",
-	"int __fastcall __imp__vsnwprintf(wchar_t *buffer, size_t count, wchar_t *format, va_list argptr)",
+	"long __fastcall __imp__vsnwprintf(wchar_t *buffer, size_t count, wchar_t *format, va_list argptr)",
 	"VOID __fastcall MmUnlockPages(_MDL *MemoryDescriptorList)",
 	"void __fastcall ObfDereferenceObject(void* a)",
 	"NTSTATUS __fastcall ZwClose(HANDLE Handle)",
 	"NTSTATUS __fastcall PsCreateSystemThread(HANDLE *ThreadHandle, ULONG DesiredAccess, _OBJECT_ATTRIBUTES *ObjectAttributes, HANDLE ProcessHandle, PVOID ClientId, KSTART_ROUTINE *StartRoutine, PVOID StartContext)",
-	"NTSTATUS __fastcall IoUnregisterPlugPlayNotificationEx(PVOID NotificationEntry)"
+	"NTSTATUS __fastcall IoUnregisterPlugPlayNotificationEx(PVOID NotificationEntry)",
+	"VOID __fastcall KeInitializeGuardedMutex(PVOID Mutex)",
+	"VOID __fastcall KeAcquireGuardedMutex(PVOID Mutex)",
+	"VOID __fastcall KeReleaseGuardedMutex(PVOID Mutex)",
+	"VOID __fastcall KeInitializeMutex(PVOID Mutex, ULONG Level)",
+	"NTSTATUS __fastcall KeDelayExecutionThread(_KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, LONGLONG *Interval)",
+	"LONG __fastcall KeReleaseMutex(PVOID Mutex, BOOLEAN Wait)",
+	"NTSTATUS __fastcall RtlStringFromGUID(GUID *Guid, _UNICODE_STRING *GuidString)",
+	"NTSTATUS __fastcall ZwReadFile(HANDLE FileHandle, HANDLE Event, PVOID  ApcRoutine, PVOID ApcContext, _IO_STATUS_BLOCK *IoStatusBlock, PVOID Buffer, ULONG Length, LONGLONG *ByteOffset, ULONG *Key)",
+	"NTSTATUS __fastcall RtlQueryRegistryValues(ULONG RelativeTo, wchar_t *Path, _RTL_QUERY_REGISTRY_TABLE *QueryTable, PVOID Context, PVOID Environment)",
+	"NTSTATUS __fastcall ZwCreateFile(HANDLE *FileHandle, ACCESS_MASK DesiredAccess, _OBJECT_ATTRIBUTES *ObjectAttributes, _IO_STATUS_BLOCK *IoStatusBlock, LONGLONG *AllocationSize, ULONG FileAttributes, ULONG ShareAccess, ULONG CreateDisposition, ULONG CreateOptions, PVOID EaBuffer, ULONG EaLength)",
+	"LONG __fastcall RtlCompareUnicodeString(_UNICODE_STRING *String1, _UNICODE_STRING *String2, BOOLEAN CaseInSensitive)",
+	"NTSTATUS __fastcall ZwQueryInformationFile(HANDLE FileHandle, _IO_STATUS_BLOCK *IoStatusBlock, PVOID FileInformation, ULONG Length, _FILE_INFORMATION_CLASS FileInformationClass)",
+	"wchar_t __fastcall *__imp_wcsrchr(wchar_t *str, wchar_t c)",
+	"_KSYSTEM_TIME __fastcall KeTickCount()"
 	]
 	
 	for proto_function in imported_functions:
