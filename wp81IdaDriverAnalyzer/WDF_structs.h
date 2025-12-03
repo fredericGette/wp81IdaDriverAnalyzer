@@ -300,6 +300,7 @@ struct _DRIVER_OBJECT {
 
 typedef NTSTATUS __fastcall FN_WDF_DRIVER_DEVICE_ADD(WDFDRIVER Driver, WDFDEVICE_INIT *DeviceInit);
 typedef VOID __fastcall FN_WDF_DRIVER_UNLOAD(WDFDRIVER Driver);
+typedef VOID __fastcall FN_EVT_WDF_REQUEST_CANCEL(WDFREQUEST Request);
 
 struct _WDF_DRIVER_CONFIG {
   ULONG                     Size;
@@ -1475,4 +1476,9 @@ struct _WDF_CHILD_LIST_CONFIG {
   NTSTATUS (__fastcall EvtWdfChildListAddressDescriptionDuplicate)(WDFCHILDLIST ChildList, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *SourceAddressDescription, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *DestinationAddressDescription);
   VOID (__fastcall EvtWdfChildListAddressDescriptionCleanup)(WDFCHILDLIST ChildList, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *AddressDescription);
   BOOLEAN (__fastcall EvtWdfChildListDeviceReenumerated)(WDFCHILDLIST ChildList, WDFDEVICE OldDevice, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *OldAddressDescription, _WDF_CHILD_ADDRESS_DESCRIPTION_HEADER *NewAddressDescription);
+};
+
+struct _WDF_REQUEST_FORWARD_OPTIONS {
+  ULONG Size;
+  ULONG Flags;
 };
