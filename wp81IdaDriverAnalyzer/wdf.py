@@ -950,6 +950,25 @@ def rename_wdf_context_type_info(ContextTypeInfo_address):
 	print(f"Done  : {action}")
 	return context_name
 
+def safe_decompile(function_or_ea, context_label):
+	"""
+	Wraps ida_hexrays.decompile() and reports failure instead of returning
+	None silently. Hex-Rays can fail to decompile a function (bad stack
+	frame, unresolved indirect control flow, etc.) and returns None rather
+	than raising, so every call site must check the result before use.
+	Accepts either a func_t (as returned by ida_funcs.get_func) or a raw
+	address, matching what ida_hexrays.decompile() itself accepts.
+	"""
+	try:
+		cfunc = ida_hexrays.decompile(function_or_ea, None, ida_hexrays.DECOMP_NO_WAIT)
+	except ida_hexrays.DecompilationFailure:
+		cfunc = None
+	if cfunc is None:
+		start_ea = function_or_ea.start_ea if hasattr(function_or_ea, 'start_ea') else function_or_ea
+		func_name = idc.get_name(start_ea) if start_ea else "?"
+		print(f"Failed: Decompile '{func_name}' ({context_label}): decompilation failed.")
+	return cfunc
+
 def get_imported_function_address(func_name):
 	for name_ea, name in idautils.Names():
 		if name == func_name:
@@ -980,7 +999,9 @@ def rename_function_McGenEventRegister():
 	McGenEventRegister_function = ida_funcs.get_func(xref.frm)
 	rename_function(McGenEventRegister_function.start_ea, 'int __fastcall McGenEventRegister(const _GUID *ProviderId, void (__fastcall *EnableCallback)(const _GUID *, unsigned int, unsigned __int8, unsigned __int64, unsigned __int64, _EVENT_FILTER_DESCRIPTOR *, void *), void *CallbackContext, unsigned __int64 *RegHandle)', force=True)
 	# Decompile the function McGenEventRegister to find the call to EtwRegister
-	cfunc = ida_hexrays.decompile(McGenEventRegister_function,None,ida_hexrays.DECOMP_NO_WAIT)
+	cfunc = safe_decompile(McGenEventRegister_function, "McGenEventRegister")
+	if cfunc is None:
+		return
 	visitor = find_all_call_visitor('EtwRegister')
 	visitor.apply_to(cfunc.body, None)
 	call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to EtwRegister
@@ -1002,7 +1023,9 @@ def rename_function_McGenEventRegister():
 		if calling_function == None:
 			continue
 		# Decompile the calling function to find the call to McGenEventRegister
-		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(calling_function, "McGenEventRegister caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('McGenEventRegister')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to McGenEventRegister
@@ -1067,7 +1090,9 @@ def rename_function_WppInitKm_and_WppCleanupKm():
 		# Get the function object containing the target address
 		calling_function = ida_funcs.get_func(xref.frm)
 		# Decompile the calling function to find the call to IoWMIRegistrationControl
-		cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(calling_function, "IoWMIRegistrationControl caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('IoWMIRegistrationControl')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to IoWMIRegistrationControl
@@ -1099,7 +1124,9 @@ def rename_offset_WPP_CONTROL_GUID():
 			if calling_function == None:
 				continue
 			# Decompile the calling function to find an assignment
-			cfunc = ida_hexrays.decompile(calling_function,None,ida_hexrays.DECOMP_NO_WAIT)
+			cfunc = safe_decompile(calling_function, "WPP_CONTROL_GUID assignment")
+			if cfunc is None:
+				continue
 			visitor = find_asg_type_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'ControlGuid')
 			visitor.apply_to(cfunc.body, None)
 			asg_expr = visitor.found_asg
@@ -1135,7 +1162,9 @@ def rename_function_WppLoadTracingSupport():
 	rename_function(function.start_ea,'int __fastcall WppLoadTracingSupport()', force=True)
 	
 	# Decompile the function to find memory assignments
-	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+	cfunc = safe_decompile(function, "WppLoadTracingSupport")
+	if cfunc is None:
+		return
 	
 	memory_assignment_data = [
 		(0, 'unsigned __int8 (__fastcall *)(unsigned int *, unsigned int *, unsigned int *, _UNICODE_STRING *) pfnWppGetVersion', 'first'),
@@ -1377,7 +1406,9 @@ def rename_function_WppTraceCallback():
 		return
 	
 	# Decompile the function to find an assignment
-	cfunc = ida_hexrays.decompile(WppInitKm_address,None,ida_hexrays.DECOMP_NO_WAIT)
+	cfunc = safe_decompile(WppInitKm_address, "WppTraceCallback")
+	if cfunc is None:
+		return
 	visitor = find_asg_type_visitor(WPP_TRACE_CONTROL_BLOCK_STRUCT_NAME, 'Callback')
 	visitor.apply_to(cfunc.body, None)
 	asg_expr = visitor.found_asg
@@ -1403,11 +1434,11 @@ def rename_functions_EventWrite():
 		function = ida_funcs.get_func(xref.frm)
 		count += 1
 		# Decompile the function to force the generation of its prototype
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "EventWrite caller")
 		current_proto = idc.get_type(function.start_ea)
 		# Find the index of the fourth comma (we will overwrite the 4 first parameters of the function)
 		# The find() method's second argument is the starting index for the search.
-		first_comma = current_proto.find(',')
+		first_comma = current_proto.find(',') if current_proto is not None else -1
 		if first_comma != -1:
 			second_comma = current_proto.find(',', first_comma + 1)
 			if second_comma != -1:
@@ -1444,7 +1475,9 @@ def rename_functions_DoTraceMessage():
 		new_function_name = f'DoTraceMessage_{function_count:02}'
 		rename_function(function.start_ea, new_function_name) # We don't change the prototype of the function
 		# Decompile the function to searh the GUID parameter of WppTraceMessage
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "DoTraceMessage")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('pfnWppTraceMessage')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to pfnWppTraceMessage
@@ -1482,7 +1515,9 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceInitSetPnpPowerEventCallbacks
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceInitSetPnpPowerEventCallbacks caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfDeviceInitSetPnpPowerEventCallbacks')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceInitSetPnpPowerEventCallbacks
@@ -1494,7 +1529,9 @@ def rename_callbacks_WdfDeviceInitSetPnpPowerEventCallbacks():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignments of PnpPowerEventCallbacks
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceInitSetPnpPowerEventCallbacks caller (post-retype)")
+		if cfunc is None:
+			continue
 		
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0Entry', "NTSTATUS __fastcall EvtWdfDeviceD0Entry(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE PreviousState)")
 		rename_callback(function_name, cfunc, WDF_PNPPOWER_EVENT_CALLBACKS_STRUCT_NAME, 'EvtDeviceD0EntryPostInterruptsEnabled', "NTSTATUS __fastcall EvtWdfDeviceD0EntryPostInterruptsEnabled(WDFDEVICE Device, _WDF_POWER_DEVICE_STATE PreviousState)")
@@ -1527,7 +1564,9 @@ def rename_callbacks_WdfDeviceInitSetFileObjectConfig():
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceInitSetFileObjectConfig
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceInitSetFileObjectConfig caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfDeviceInitSetFileObjectConfig')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceInitSetFileObjectConfig
@@ -1539,7 +1578,9 @@ def rename_callbacks_WdfDeviceInitSetFileObjectConfig():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignments of FileObjectConfig
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceInitSetFileObjectConfig caller (post-retype)")
+		if cfunc is None:
+			continue
 		
 		rename_callback(function_name, cfunc, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, 'EvtDeviceFileCreate', "void __fastcall EvtWdfDeviceFileCreate(WDFDEVICE Device, WDFREQUEST Request, WDFFILEOBJECT FileObject)")
 		rename_callback(function_name, cfunc, WDF_FILEOBJECT_CONFIG_STRUCT_NAME, 'EvtFileClose', "void __fastcall EvtWdfFileClose(WDFFILEOBJECT FileObject)")
@@ -1558,7 +1599,9 @@ def rename_callbacks_WdfDeviceCreate():
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceCreate
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceCreate caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfDeviceCreate')
 		visitor.apply_to(cfunc.body, None)
 		call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to WdfDeviceCreate
@@ -1570,7 +1613,9 @@ def rename_callbacks_WdfDeviceCreate():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignments of DeviceAttributes
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceCreate caller (post-retype)")
+		if cfunc is None:
+			continue
 		
 		rename_callback(function_name, cfunc, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'EvtCleanupCallback', "void __fastcall EvtWdfObjectContextCleanup(WDFOBJECT Object)")
 		rename_callback(function_name, cfunc, WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'EvtDestroyCallback', "void __fastcall EvtWdfObjectContextDestroy(WDFOBJECT Object)")
@@ -1588,7 +1633,9 @@ def rename_callbacks_WdfIoQueueCreate():
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfIoQueueCreate
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfIoQueueCreate caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfIoQueueCreate')
 		visitor.apply_to(cfunc.body, None)
 		for call_expr,_ in visitor.list_found_call:
@@ -1599,7 +1646,9 @@ def rename_callbacks_WdfIoQueueCreate():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignments of Config
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfIoQueueCreate caller (post-retype)")
+		if cfunc is None:
+			continue
 		
 		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoDefault', "void __fastcall EvtWdfIoQueueIoDefault(WDFQUEUE Queue, WDFREQUEST Request)")
 		rename_callback(function_name, cfunc, WDF_IO_QUEUE_CONFIG_STRUCT_NAME, 'EvtIoRead', "void __fastcall EvtWdfIoQueueIoRead(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)")
@@ -1625,7 +1674,9 @@ def rename_GUID_interface():
 		function_name = idc.get_name(function.start_ea)
 		action = f"Rename GUID interface used by function 'WdfDeviceCreateDeviceInterface' in the function '{function_name}'"
 		# Decompile the function to find the call to WdfDeviceCreateDeviceInterface
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceCreateDeviceInterface caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfDeviceCreateDeviceInterface')
 		visitor.apply_to(cfunc.body, None)
 		for call_expr,_ in visitor.list_found_call:
@@ -1660,7 +1711,9 @@ def rename_callbacks_WdfDeviceAddQueryInterface():
 		function = ida_funcs.get_func(xref.frm)
 		function_name = idc.get_name(function.start_ea)
 		# Decompile the function to find the call to WdfDeviceAddQueryInterface
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceAddQueryInterface caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfDeviceAddQueryInterface')
 		visitor.apply_to(cfunc.body, None)
 		for call_expr,_ in visitor.list_found_call:
@@ -1671,7 +1724,9 @@ def rename_callbacks_WdfDeviceAddQueryInterface():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignment of InterfaceType
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceAddQueryInterface caller (post-retype)")
+		if cfunc is None:
+			continue
 		visitor = find_asg_type_visitor(WDF_QUERY_INTERFACE_CONFIG_STRUCT_NAME, 'InterfaceType')
 		visitor.apply_to(cfunc.body, None)
 		asg_expr = visitor.found_asg
@@ -1758,7 +1813,9 @@ def rename_callbacks_WdfDeviceAddQueryInterface():
 		ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 		
 		# Decompile again the function to find the assignments of query_interface
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfDeviceAddQueryInterface caller (query_interface retype)")
+		if cfunc is None:
+			return
 		
 		interfaceFunction_count = 0
 		while interfaceFunction_count < int((interface_size-0x10)/4):
@@ -1779,7 +1836,9 @@ def create_object_contextes():
 		function_name = idc.get_name(function.start_ea)
 		# print(f"function_name={function_name}")
 		# Decompile the function to find the call to WdfObjectGetTypedContextWorker
-		cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+		cfunc = safe_decompile(function, "WdfObjectGetTypedContextWorker caller")
+		if cfunc is None:
+			continue
 		visitor = find_all_call_visitor('WdfObjectGetTypedContextWorker')
 		visitor.apply_to(cfunc.body, None)
 		new_types={} # map variable name : new type
@@ -1981,10 +2040,10 @@ def rename_functions_and_offsets():
 	xrefs_list = list(xrefs)  # Convert the generator to a list
 	# Check if any references were found
 	if len(xrefs_list) < 1:
-		print("Failed: {action}: WdfDriverCreate is never called!")
+		print(f"Failed: {action}: WdfDriverCreate is never called!")
 		return
 	if len(xrefs_list) > 1:
-		print("Failed: {action}: WdfDriverCreate is called more than once!")
+		print(f"Failed: {action}: WdfDriverCreate is called more than once!")
 		return
 	xref = xrefs_list[0]
 	# Get the function object containing the target address
@@ -1992,7 +2051,9 @@ def rename_functions_and_offsets():
 	function_name = idc.get_func_name(function.start_ea)
 	
 	# Decompile the function to find the call to WdfDriverCreate
-	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+	cfunc = safe_decompile(function, "WdfDriverCreate caller")
+	if cfunc is None:
+		return
 	visitor = find_all_call_visitor('WdfDriverCreate')
 	visitor.apply_to(cfunc.body, None)
 	call_expr,_ = visitor.list_found_call[0] # We expect exactly one call to WdfDriverCreate
@@ -2008,7 +2069,9 @@ def rename_functions_and_offsets():
 	ida_hexrays.mark_cfunc_dirty(function.start_ea, True)
 	
 	# Decompile again the function to find the assignments of DriverAttributes and DriverConfig
-	cfunc = ida_hexrays.decompile(function,None,ida_hexrays.DECOMP_NO_WAIT)
+	cfunc = safe_decompile(function, "WdfDriverCreate caller (post-retype)")
+	if cfunc is None:
+		return
 	
 	visitor = find_asg_type_visitor(WDF_OBJECT_ATTRIBUTES_STRUCT_NAME, 'ContextTypeInfo')
 	visitor.apply_to(cfunc.body, None)
