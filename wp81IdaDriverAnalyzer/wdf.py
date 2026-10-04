@@ -507,7 +507,20 @@ def add_WDFFUNCTIONS_structure():
 		return
 		
 	ref_to_aKmdflibrary_address = idc.get_first_dref_to(aKmdflibrary_address)
-	
+	if ref_to_aKmdflibrary_address == idaapi.BADADDR:
+		# No xref created by the auto-analysis: search the address of the string as a raw dword.
+		address_pattern = "".join(f'{b:02X} ' for b in aKmdflibrary_address.to_bytes(4, 'little'))
+		ref_to_aKmdflibrary_address = ida_bytes.find_bytes(
+			address_pattern,
+			idc.get_inf_attr(idc.INF_MIN_EA),
+			range_end=idc.get_inf_attr(idc.INF_MAX_EA),
+			flags=ida_bytes.BIN_SEARCH_FORWARD,
+			radix=16
+		)
+	if ref_to_aKmdflibrary_address == idaapi.BADADDR:
+		print(f"Failed: {action}: reference to KmdfLibrary not found!")
+		return
+
 	# The name of the library is referenced in this structure:
 	#WdfBindInfo	DCD 0x20				; Size
 	#				DCD aKmdflibrary		; Component ; "KmdfLibrary"
@@ -933,20 +946,22 @@ def rename_wdf_context_type_info(ContextTypeInfo_address):
 	ContextTypeInfo_structure_name = "WDF_"+context_name+"_TYPE_INFO"
 	rename_offset(ContextTypeInfo_structure_address, "_WDF_OBJECT_CONTEXT_TYPE_INFO "+ContextTypeInfo_structure_name)
 	
-	action = f"Create structure {context_name}."
+	action = f"Create structure {context_name} of size {hex(context_size)}."
+	if context_size == 0 or context_size > 0x100000:
+		print(f"Failed: {action}: Implausible context size!")
+		return None
 	# Create the structure of the context
 	# Check if the structure already exists
 	struc_id = idc.get_struc_id(context_name)
 	if struc_id != idc.BADADDR:
 		# delete old structure
 		idc.del_struc(struc_id)
-	# Create a new structure
-	struc_id = idc.add_struc(-1, context_name, 0) # -1 adds it at the end, 0 means not a union
-	if struc_id == idc.BADADDR:
+	# Create the structure with a single declaration: adding the members one by one
+	# with add_struc_member() is quadratic and fills the undo buffer for big contexts.
+	members = "".join(f"unsigned __int8 field_{idx:x};" for idx in range(context_size))
+	if 0 == idc.set_local_type(-1, f"struct {context_name} {{{members}}};", idc.PT_SIL):
 		print(f"Failed: {action}")
 		return None
-	for idx in range(context_size):
-		idc.add_struc_member(struc_id, f"field_{idx:x}", idx, idc.FF_BYTE | idc.FF_DATA, -1,1)
 	print(f"Done  : {action}")
 	return context_name
 
@@ -1762,24 +1777,27 @@ def rename_callbacks_WdfDeviceAddQueryInterface():
 		print(f"Done  : {action}")
 		
 		action = f"Find the size of QUERY_INTERFACE in the function '{function_name}'"
-		# Find the assignment of the stack frame variable with a numerical value > 0
+		# Find the assignment of the stack frame variable with a plausible size value
+		# (header of 0x10 bytes followed by function pointers, so a multiple of 4).
 		visitor = find_all_asg_name_visitor(variable_name)
 		visitor.apply_to(cfunc.body, None)
 		interface_size = 0
 		for asg_expr in visitor.list_found_asg:
 			right_asg_expr = asg_expr.y
 			if right_asg_expr.op == idaapi.cot_num :
-				if right_asg_expr.numval() > 0:
-					interface_size = right_asg_expr.numval()
+				value = right_asg_expr.numval()
+				if 0x10 <= value <= 0x400 and value % 4 == 0:
+					interface_size = value
 					break
+				print(f"Info  : {action}: Ignore implausible size {hex(value)}.")
 			else:
 				print(f"Failed: {action}: '{variable_name}' in the function '{function_name}' is not assigned to a number.")
 				return
 		if interface_size ==0:
-				print(f"Failed: {action}: Could not find a assignment of '{variable_name}' in the function '{function_name}' with a value > 0.")
+				print(f"Failed: {action}: Could not find a assignment of '{variable_name}' in the function '{function_name}' with a plausible size.")
 				return
-		print(f"Done  : {action}")
-		
+		print(f"Done  : {action}: {hex(interface_size)}")
+
 		# Create a new structure for the interface
 		action = "Create structure 'QUERY_INTERFACE'"
 		struc_id = idc.add_struc(-1, 'QUERY_INTERFACE', 0) # -1 adds it at the end, 0 means not a union
