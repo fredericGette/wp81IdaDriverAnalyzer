@@ -29,7 +29,7 @@ Adds local types, identifies WDF functions, tries to infer types of variables, e
 
 ## Installation and usage
 
-Install the tool by placing the file `wp81IdaDriverAnalyzer.py` and the folder `wp81IdaDriverAnalyzer` into IDA's `plugins` directory. This requires the **ARM decompiler** and is compatible with IDA versions up to **9.x** (it's been tested with IDA Home 9.2).
+Install the tool by placing the file `wp81IdaDriverAnalyzer.py` and the folder `wp81IdaDriverAnalyzer` into IDA's `plugins` directory. This requires the **ARM decompiler** and is compatible with IDA versions up to **9.x** (it's been tested with IDA Home 9.4).
 
 For a freshly disassembled driver, select **Edit > Plugins > Wp81 Driver Analyzer**.
 
